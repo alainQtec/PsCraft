@@ -1,0 +1,15 @@
+name: Publish to PowerShell Gallery
+on: [workflow_dispatch]
+defaults:
+  run:
+    shell: pwsh
+jobs:
+  publish-to-gallery:
+    name: Build and Publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Publish
+        env:
+          NUGETAPIKEY: ${{ secrets.NUGETAPIKEY }}
+        run: ./publish.ps1
