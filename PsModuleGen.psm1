@@ -168,7 +168,7 @@ class PSmodule {
         $this.ModuleDirs.tests = [System.IO.Path]::Combine($this.ModuleDirs.root.FullName, 'Tests')
         $this.ModuleDirs.public = [System.IO.Path]::Combine($this.ModuleDirs.root.FullName, 'Public')
         $this.ModuleDirs.private = [System.IO.Path]::Combine($this.ModuleDirs.root.FullName, 'Private')
-        $this.ModuleDirs.localdata = [System.IO.Path]::Combine($this.ModuleDirs.root.FullName, (Get-WinUserLanguageList)[0].LanguageTag)
+        $this.ModuleDirs.localdata = [System.IO.Path]::Combine($this.ModuleDirs.root.FullName, [System.Globalization.CultureInfo]::InstalledUICulture[0].Name)
 
         $this.ModuleFiles.Manifest = [System.IO.Path]::Combine($this.ModuleDirs.root.FullName, "$($this.Name).psd1")
         $this.ModuleFiles.rootLoader = [System.IO.Path]::Combine($this.ModuleDirs.root.FullName, "$($this.Name).psm1")
@@ -233,7 +233,7 @@ class PSmodule {
     }
     static [PSCustomObject] Get_Localized_Data([string]$RootPath) {
         [void][System.IO.Directory]::SetCurrentDirectory($RootPath)
-        $dataFile = [System.IO.FileInfo]::new([IO.Path]::Combine($RootPath, (Get-WinUserLanguageList)[0].LanguageTag, 'PsModuleGen.strings.psd1'))
+        $dataFile = [System.IO.FileInfo]::new([IO.Path]::Combine($RootPath, [System.Globalization.CultureInfo]::InstalledUICulture[0].Name, 'PsModuleGen.strings.psd1'))
         if (!$dataFile.Exists) { throw [System.IO.FileNotFoundException]::new('Unable to find the LocalizedData file!', $dataFile) }
         return [scriptblock]::Create("$([IO.File]::ReadAllText($dataFile))").Invoke()
     }
