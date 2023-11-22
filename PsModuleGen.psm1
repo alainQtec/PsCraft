@@ -1,5 +1,4 @@
 #region    Classes
-
 enum SaveOptions {
     AcceptAllChangesAfterSave # After changes are saved, we resets change tracking.
     DetectChangesBeforeSave # Before changes are saved, the DetectChanges method is called to synchronize Objects.
