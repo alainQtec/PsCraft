@@ -378,10 +378,11 @@ Begin {
             $Host.UI.WriteLine()
         }
     )
-    if (!$(Get-Variable PsGallery_Helper_Functions -ValueOnly -Scope global -ErrorAction Ignore)) {
-        Set-Variable -Name PsGallery_Helper_Functions -Scope global -Option ReadOnly -Value ([scriptblock]::Create($((Invoke-RestMethod -Method Get https://api.github.com/gists/7629f35f93ae89a525204bfd9931b366).files.'PsGallery_Helper_Functions.ps1'.content)))
+    $script:PsGallery_Helper_Functions = if (Get-Variable PsGallery_Helper_Functions -ValueOnly -Scope global -ErrorAction Ignore) {
+        $(Get-Variable PsGallery_Helper_Functions -ValueOnly -Scope global)
+    } else {
+        [scriptblock]::Create($((Invoke-RestMethod -Method Get https://api.github.com/gists/7629f35f93ae89a525204bfd9931b366).files.'PsGallery_Helper_Functions.ps1'.content))
     }
-    . $(Get-Variable PsGallery_Helper_Functions -ValueOnly -Scope global)
     #endregion ScriptBlockss
     $Psake_BuildFile = New-Item $([IO.Path]::GetTempFileName().Replace('.tmp', '.ps1'))
     $verbose = @{}
@@ -938,6 +939,7 @@ Process {
         }
     }
     Write-Heading "Prepare package feeds"
+    . $script:PsGallery_Helper_Functions
     Resolve-PackageProviders; $Host.ui.WriteLine(); $null = Import-PackageProvider -Name NuGet -Force
     foreach ($Name in @('PackageManagement', 'PowerShellGet')) {
         # Manual install them to prevent wierd errors like:
