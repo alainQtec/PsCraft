@@ -7,6 +7,10 @@ Helps to easily create a new PowerShell module.
 [![CI](https://github.com/alainQtec/PsModuleGen/actions/workflows/CI.yaml/badge.svg)](https://github.com/alainQtec/PsModuleGen/actions/workflows/CI.yaml)
 [![Upload artifact from Ubuntu](https://github.com/alainQtec/PsModuleGen/actions/workflows/Upload_Artifact.yaml/badge.svg)](https://github.com/alainQtec/PsModuleGen/actions/workflows/Upload_Artifact.yaml)
 [![Publish to PowerShell Gallery](https://github.com/alainQtec/PsModuleGen/actions/workflows/Publish.yaml/badge.svg)](https://github.com/alainQtec/PsModuleGen/actions/workflows/Publish.yaml)
+<a href="https://www.PowerShellGallery.com/packages/PsModuleGen">
+    <img src="https://img.shields.io/powershellgallery/dt/PsModuleGen.svg?style=flat&logo=powershell&color=blue"
+      alt="PowerShell Gallery" title="PowerShell Gallery" />
+  </a>
 
 ## Installation
 
