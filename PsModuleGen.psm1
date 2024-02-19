@@ -1,3 +1,6 @@
+using namespace System.Collections.Generic
+using namespace System.Management.Automation.Language
+
 #region    Classes
 enum SaveOptions {
     AcceptAllChangesAfterSave # After changes are saved, we resets change tracking.
@@ -279,10 +282,27 @@ class PSmodule {
         Publish-Module -Path $this.moduleDir -Repository $repoName
         Install-Module $this.Name -Repository $repoName
     }
+    static [void] Publish ([string]$Path, [securestring]$ApiKey, [bool]$IncrementVersion ) {
+        $moduleName = Split-Path $Path -Leaf
+        $functions = Get-PsModuleFunctions $Path -PublicOnly
+        if ($IncrementVersion) {
+            $moduleFile = "$((Join-Path $path $moduleName)).psd1"
+            $file = Import-PowerShellDataFile $moduleFile;
+            [version]$version = ($file).ModuleVersion
+            [version]$newVersion = "{0}.{1}.{2}" -f $version.Major, $version.Minor, ($version.Build + 1) 
+            Update-ModuleManifest -Path "$((Join-Path $Path $moduleName)).psd1" -FunctionsToExport $functions -ModuleVersion $newVersion;
+        } else{
+            Update-ModuleManifest -Path "$((Join-Path $Path $moduleName)).psd1" -FunctionsToExport $functions;
+        }
+        Publish-Module -Path $Path -NugetAPIKey $ApiKey;
+
+        Write-Host "Module $moduleName published";
+    }
     hidden [string[]] GenerateTags() {
         return $this.GenerateTags($this.Description)
     }
     hidden [string[]] GenerateTags([string]$Description) {
+        # use AI to generate tags
         # This is meant to achieve Text Classification level like that of: https://learn.microsoft.com/en-us/ai-builder/text-classification-model-use-tags
         return ('Psmodule', 'PowerShell')
     }
@@ -372,6 +392,195 @@ class dotEnv {
                 }
             }
         }
+    }
+}
+class AliasVisitor : System.Management.Automation.Language.AstVisitor {
+    [string]$Parameter = $null
+    [string]$Command = $null
+    [string]$Name = $null
+    [string]$Value = $null
+    [string]$Scope = $null
+    [HashSet[String]]$Aliases = @()
+
+    # Parameter Names
+    [AstVisitAction] VisitCommandParameter([CommandParameterAst]$ast) {
+        $this.Parameter = $ast.ParameterName
+        return [AstVisitAction]::Continue
+    }
+
+    # Parameter Values
+    [AstVisitAction] VisitStringConstantExpression([StringConstantExpressionAst]$ast) {
+        # The FIRST command element is always the command name
+        if (!$this.Command) {
+            $this.Command = $ast.Value
+            return [AstVisitAction]::Continue
+        } else {
+            # Nobody should use minimal parameters like -N for -Name ...
+            # But if they do, our parser works anyway!
+            switch -Wildcard ($this.Parameter) {
+                "S*" {
+                    $this.Scope = $ast.Value
+                }
+                "N*" {
+                    $this.Name = $ast.Value
+                }
+                "Va*" {
+                    $this.Value = $ast.Value
+                }
+                "F*" {
+                    if ($ast.Value) {
+                        # Force parameter was passed as named parameter with a positional parameter after it which is alias name
+                        $this.Name = $ast.Value
+                    }
+                }
+                default {
+                    if (!$this.Parameter) {
+                        # For bare arguments, the order is Name, Value:
+                        if (!$this.Name) {
+                            $this.Name = $ast.Value
+                        } else {
+                            $this.Value = $ast.Value
+                        }
+                    }
+                }
+            }
+
+            $this.Parameter = $null
+
+            # If we have enough information, stop the visit
+            # For -Scope global or Remove-Alias, we don't want to export these
+            if ($this.Name -and $this.Command -eq "Remove-Alias") {
+                $this.Command = "Remove-Alias"
+                return [AstVisitAction]::StopVisit
+            } elseif ($this.Name -and $this.Scope -eq "Global") {
+                return [AstVisitAction]::StopVisit
+            }
+            return [AstVisitAction]::Continue
+        }
+    }
+
+    # The [Alias(...)] attribute on functions matters, but we can't export aliases that are defined inside a function
+    [AstVisitAction] VisitFunctionDefinition([FunctionDefinitionAst]$ast) {
+        @($ast.Body.ParamBlock.Attributes.Where{ $_.TypeName.Name -eq "Alias" }.PositionalArguments.Value).ForEach{
+            if ($_) {
+                $this.Aliases.Add($_)
+            }
+        }
+        return [AstVisitAction]::SkipChildren
+    }
+
+    # Top-level commands matter, but only if they're alias commands
+    [AstVisitAction] VisitCommand([CommandAst]$ast) {
+        if ($ast.CommandElements[0].Value -imatch "(New|Set|Remove)-Alias") {
+            $ast.Visit($this.ClearParameters())
+            $Params = $this.GetParameters()
+            # We COULD just remove it (even if we didn't add it) ...
+            if ($Params.Command -ieq "Remove-Alias") {
+                # But Write-Verbose for logging purposes
+                if ($this.Aliases.Contains($this.Parameters.Name)) {
+                    Write-Verbose -Message "Alias '$($Params.Name)' is removed by line $($ast.Extent.StartLineNumber): $($ast.Extent.Text)"
+                    $this.Aliases.Remove($Params.Name)
+                }
+            # We don't need to export global aliases, because they broke out already
+            } elseif ($Params.Name -and $Params.Scope -ine 'Global') {
+                $this.Aliases.Add($this.Parameters.Name)
+            }
+        }
+        return [AstVisitAction]::SkipChildren
+    }
+    [pscustomobject] GetParameters() {
+        return [PSCustomObject]@{
+            PSTypeName  = "PSmoduleGen.AliasVisitor.AliasParameters"
+            Name        = $this.Name
+            Command     = $this.Command
+            Parameter   = $this.Parameter
+            Value       = $this.Value
+            Scope       = $this.Scope
+        }
+    }
+    [AliasVisitor] ClearParameters() {
+        $this.Command = $null
+        $this.Parameter = $null
+        $this.Name = $null
+        $this.Value = $null
+        $this.Scope = $null
+        return $this
+    }
+}
+class PSmoduleGen {
+    static [HashSet[String]] GetCommandAlias([System.Management.Automation.Language.Ast]$Ast) {
+        $Visitor = [AliasVisitor]::new()
+        $Ast.Visit($Visitor)
+        return $Visitor.Aliases
+    }
+    static [PSCustomObject] ConvertToAst($Code) {
+        # Parses the given code and returns an object with the AST, Tokens and ParseErrors
+        Write-Debug "    ENTER: ConvertToAst $Code"
+        $ParseErrors = $null
+        $Tokens = $null
+        if ($Code | Test-Path -ErrorAction SilentlyContinue) {
+            Write-Debug "      Parse Code as Path"
+            $AST = [System.Management.Automation.Language.Parser]::ParseFile(($Code | Convert-Path), [ref]$Tokens, [ref]$ParseErrors)
+        } elseif ($Code -is [System.Management.Automation.FunctionInfo]) {
+            Write-Debug "      Parse Code as Function"
+            $String = "function $($Code.Name) { $($Code.Definition) }"
+            $AST = [System.Management.Automation.Language.Parser]::ParseInput($String, [ref]$Tokens, [ref]$ParseErrors)
+        } else {
+            Write-Debug "      Parse Code as String"
+            $AST = [System.Management.Automation.Language.Parser]::ParseInput([String]$Code, [ref]$Tokens, [ref]$ParseErrors)
+        }
+
+        Write-Debug "    EXIT: ConvertToAst"
+        return [PSCustomObject]@{
+            PSTypeName  = "PoshCode.ModuleBuilder.ParseResults"
+            ParseErrors = $ParseErrors
+            Tokens      = $Tokens
+            AST         = $AST
+        }
+    }
+    static [string] GetRelativePath(
+        # The source path the result should be relative to. This path is always considered to be a directory.
+        [string]$RelativeTo,
+        # The destination path.
+        [string]$Path
+    ) {
+        $result = [string]::Empty
+        # This giant mess is because PowerShell drives aren't valid filesystem drives
+        $Drive = $Path -replace "^([^\\/]+:[\\/])?.*", '$1'
+        if ($Drive -ne ($RelativeTo -replace "^([^\\/]+:[\\/])?.*", '$1')) {
+            Write-Verbose "Paths on different drives"
+            return $Path # no commonality, different drive letters on windows
+        }
+        $RelativeTo = $RelativeTo -replace "^[^\\/]+:[\\/]", [IO.Path]::DirectorySeparatorChar
+        $Path = $Path -replace "^[^\\/]+:[\\/]", [IO.Path]::DirectorySeparatorChar
+        $RelativeTo = [IO.Path]::GetFullPath($RelativeTo).TrimEnd('\/') -replace "^[^\\/]+:[\\/]", [IO.Path]::DirectorySeparatorChar
+        $Path = [IO.Path]::GetFullPath($Path) -replace "^[^\\/]+:[\\/]", [IO.Path]::DirectorySeparatorChar
+
+        $commonLength = 0
+        while ($Path[$commonLength] -eq $RelativeTo[$commonLength]) {
+            $commonLength++
+        }
+        if ($commonLength -eq $RelativeTo.Length -and $RelativeTo.Length -eq $Path.Length) {
+            Write-Verbose "Equal Paths"
+            return "." # The same paths
+        }
+        if ($commonLength -eq 0) {
+            Write-Verbose "Paths on different drives?"
+            return $Drive + $Path # no commonality, different drive letters on windows
+        }
+
+        Write-Verbose "Common base: $commonLength $($RelativeTo.Substring(0,$commonLength))"
+        # In case we matched PART of a name, like C:\Users\Joel and C:\Users\Joe
+        while ($commonLength -gt $RelativeTo.Length -and ($RelativeTo[$commonLength] -ne [IO.Path]::DirectorySeparatorChar)) {
+            $commonLength--
+        }
+
+        Write-Verbose "Common base: $commonLength $($RelativeTo.Substring(0,$commonLength))"
+        # create '..' segments for segments past the common on the "$RelativeTo" path
+        if ($commonLength -lt $RelativeTo.Length) {
+            $result = @('..') * @($RelativeTo.Substring($commonLength).Split([IO.Path]::DirectorySeparatorChar).Where{ $_ }).Length -join ([IO.Path]::DirectorySeparatorChar)
+        }
+        return (@($result, $Path.Substring($commonLength).TrimStart([IO.Path]::DirectorySeparatorChar)).Where{ $_ } -join ([IO.Path]::DirectorySeparatorChar))
     }
 }
 #endregion Classes
