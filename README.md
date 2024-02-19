@@ -37,7 +37,7 @@ Helps to easily create a new PowerShell module.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a pull request.
+Pull requests are welcome! You can also contribute to this module by writing code, sharing opinions, and providing feedback.
 
 ## License
 
@@ -50,3 +50,6 @@ This project is licensed under the MIT License - see the [MIT License](https://a
 - [ ] Add module manifest generator
 
 - [ ] Add module directory tree generator
+
+- [ ] Use AI to generate tags
+<!-- Git version should be '{Major}.{Minor}.{Patch}.{env:BUILDCOUNT ?? 0}' -->
