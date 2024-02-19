@@ -47,6 +47,17 @@ class ModuleFiles {
         return $list
     }
 }
+class ParseResult {
+    [Token[]]$Tokens
+    [ScriptBlockAst]$AST
+    [ParseError[]]$ParseErrors
+
+    ParseResult([ParseError[]]$Errors, [Token[]]$Tokens, [ScriptBlockAst]$AST) {
+        $this.ParseErrors = $Errors
+        $this.Tokens = $Tokens
+        $this.AST = $AST
+    }
+}
 class PSmodule {
     [ValidateNotNullOrEmpty()]
     [System.String]$Name;
@@ -314,15 +325,32 @@ class PSmodule {
         }
     }
     hidden [string] GetAuthorName() {
-        $AuthorName = [string]::Empty
+        $AuthorName = [System.Environment]::GetEnvironmentVariable('UserName')
         try {
-            $AuthorName = Get-CimInstance -ClassName Win32_UserAccount -Verbose:$false | Where-Object { $_.Name -eq $env:USERNAME } | Select-Object -ExpandProperty FullName
+            $OS = [System.OperatingSystem]
+            $AuthorName = switch ($true) {
+                $OS::IsWindows() {
+                    Get-CimInstance -ClassName Win32_UserAccount -Verbose:$false | Where-Object { [environment]::UserName -eq $_.Name } | Select-Object -ExpandProperty FullName
+                    break
+                }
+                ($OS::IsMacOS() -or $OS::IsLinux()) {
+                    $s = getent passwd "$([environment]::UserName)"
+                    $s.Split(":")[4]
+                    break
+                }
+                # $OS::IsBrowser() {  }
+                # $OS::IsTvOS() {  }
+                # $OS::IsIOS() {  }
+                # $OS::IsFreeBSD() {  }                  
+                # $OS::IsAndroid() {  }
+                # $OS::IsWatchOS() {  }
+                Default {
+                    $msg = "OperatingSystem '{0}' is Not supported!" -f [Environment]::OSVersion.Platform
+                    Write-Warning -Message $msg
+                }
+            }
         } catch {
             throw $_
-        } finally {
-            if ([string]::IsNullOrWhiteSpace($authorName)) {
-                $AuthorName = [System.Environment]::GetEnvironmentVariable('UserName')
-            }
         }
         return $AuthorName
     }
@@ -508,12 +536,7 @@ class AliasVisitor : System.Management.Automation.Language.AstVisitor {
     }
 }
 class PSmoduleGen {
-    static [HashSet[String]] GetCommandAlias([System.Management.Automation.Language.Ast]$Ast) {
-        $Visitor = [AliasVisitor]::new()
-        $Ast.Visit($Visitor)
-        return $Visitor.Aliases
-    }
-    static [PSCustomObject] ConvertToAst($Code) {
+    static [ParseResult] ParseCode($Code) {
         # Parses the given code and returns an object with the AST, Tokens and ParseErrors
         Write-Debug "    ENTER: ConvertToAst $Code"
         $ParseErrors = $null
@@ -523,29 +546,18 @@ class PSmoduleGen {
             $AST = [System.Management.Automation.Language.Parser]::ParseFile(($Code | Convert-Path), [ref]$Tokens, [ref]$ParseErrors)
         } elseif ($Code -is [System.Management.Automation.FunctionInfo]) {
             Write-Debug "      Parse Code as Function"
-            $String = "function $($Code.Name) { $($Code.Definition) }"
+            $String = "function $($Code.Name) {`n$($Code.Definition)`n}"
             $AST = [System.Management.Automation.Language.Parser]::ParseInput($String, [ref]$Tokens, [ref]$ParseErrors)
         } else {
             Write-Debug "      Parse Code as String"
             $AST = [System.Management.Automation.Language.Parser]::ParseInput([String]$Code, [ref]$Tokens, [ref]$ParseErrors)
         }
-
-        Write-Debug "    EXIT: ConvertToAst"
-        return [PSCustomObject]@{
-            PSTypeName  = "PoshCode.ModuleBuilder.ParseResults"
-            ParseErrors = $ParseErrors
-            Tokens      = $Tokens
-            AST         = $AST
-        }
+        return [ParseResult]::new($ParseErrors, $Tokens, $AST)
     }
-    static [string] GetRelativePath(
-        # The source path the result should be relative to. This path is always considered to be a directory.
-        [string]$RelativeTo,
-        # The destination path.
-        [string]$Path
-    ) {
+    static [string] GetRelativePath([string]$RelativeTo, [string]$Path) {
+        # $RelativeTo : The source path the result should be relative to. This path is always considered to be a directory.
+        # $Path : The destination path.
         $result = [string]::Empty
-        # This giant mess is because PowerShell drives aren't valid filesystem drives
         $Drive = $Path -replace "^([^\\/]+:[\\/])?.*", '$1'
         if ($Drive -ne ($RelativeTo -replace "^([^\\/]+:[\\/])?.*", '$1')) {
             Write-Verbose "Paths on different drives"
@@ -582,8 +594,51 @@ class PSmoduleGen {
         }
         return (@($result, $Path.Substring($commonLength).TrimStart([IO.Path]::DirectorySeparatorChar)).Where{ $_ } -join ([IO.Path]::DirectorySeparatorChar))
     }
+    static [string] GetResolvedPath([string]$Path) {
+        return [PSmoduleGen]::GetResolvedPath($((Get-Variable ExecutionContext).Value.SessionState), $Path)
+    }
+    static [string] GetResolvedPath([System.Management.Automation.SessionState]$session, [string]$Path) {
+        $paths = $session.Path.GetResolvedPSPathFromPSPath($Path);
+        if ($paths.Count -gt 1) {
+            throw [System.IO.IOException]::new([string]::Format([cultureinfo]::InvariantCulture, "Path {0} is ambiguous", $Path))
+        } elseif ($paths.Count -lt 1) {
+            throw [System.IO.IOException]::new([string]::Format([cultureinfo]::InvariantCulture, "Path {0} not Found", $Path))
+        }
+        return $paths[0].Path
+    }
+    static [string] GetUnResolvedPath([string]$Path) {
+        return [PSmoduleGen]::GetUnResolvedPath($((Get-Variable ExecutionContext).Value.SessionState), $Path)
+    }
+    static [string] GetUnResolvedPath([System.Management.Automation.SessionState]$session, [string]$Path) {
+        return $session.Path.GetUnresolvedProviderPathFromPSPath($Path)
+    }
+    static [void] CreateModuleFolderStructure([PSmodule]$Module) {
+        # do stuff
+        $Module.Save()
+    }
+    static [void] Create_Dir([string]$Path) {
+        [PSmoduleGen]::Create_Dir([System.IO.DirectoryInfo]::new($Path))
+    }
+    static [void] Create_Dir([System.IO.DirectoryInfo]$Path) {
+        [ValidateNotNullOrEmpty()][System.IO.DirectoryInfo]$Path = $Path
+        $nF = @(); $p = $Path; while (!$p.Exists) { $nF += $p; $p = $p.Parent }
+        [Array]::Reverse($nF); $nF | ForEach-Object { $_.Create(); Write-Verbose "Created $_" }
+    }
+    static [HashSet[String]] GetCommandAlias([System.Management.Automation.Language.Ast]$Ast) {
+        $Visitor = [AliasVisitor]::new(); $Ast.Visit($Visitor)
+        return $Visitor.Aliases
+    }
 }
 #endregion Classes
+
+$CurrentCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture.Name
+$script:localizedData = if ($null -ne (Get-Command Get-LocalizedData -ErrorAction SilentlyContinue)) {
+    Get-LocalizedData -DefaultUICulture $CurrentCulture
+} else {
+    $dataFile = [System.IO.FileInfo]::new([IO.Path]::Combine((Get-Location), $CurrentCulture, 'PsModuleGen.strings.psd1'))
+    if (!$dataFile.Exists) { throw [System.IO.FileNotFoundException]::new('Unable to find the LocalizedData file.', 'PsModuleGen.strings.psd1') }
+    [scriptblock]::Create("$([IO.File]::ReadAllText($dataFile))").Invoke()
+}
 
 $Private = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Private')) -Filter "*.ps1" -ErrorAction SilentlyContinue
 $Public = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Public')) -Filter "*.ps1" -ErrorAction SilentlyContinue
