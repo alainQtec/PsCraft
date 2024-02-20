@@ -44,7 +44,7 @@ Begin {
     [Environment]::SetEnvironmentVariable('IsAC', $(if (![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('GITHUB_WORKFLOW'))) { '1' } else { '0' }), [System.EnvironmentVariableTarget]::Process)
     [Environment]::SetEnvironmentVariable('IsCI', $(if (![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('TF_BUILD'))) { '1' }else { '0' }), [System.EnvironmentVariableTarget]::Process)
     [Environment]::SetEnvironmentVariable('RUN_ID', $(if ([bool][int]$env:IsAC -or $env:CI -eq "true") { [Environment]::GetEnvironmentVariable('GITHUB_RUN_ID') }else { [Guid]::NewGuid().Guid.substring(0, 21).replace('-', [string]::Join('', (0..9 | Get-Random -Count 1))) + '_' }), [System.EnvironmentVariableTarget]::Process);
-    $dataFile = [System.IO.FileInfo]::new([IO.Path]::Combine($PSScriptRoot, "$([System.Globalization.CultureInfo]::InstalledUICulture[0].Name)", 'PsCraft.strings.psd1'))
+    $dataFile = [System.IO.FileInfo]::new([IO.Path]::Combine($PSScriptRoot, [System.Threading.Thread]::CurrentThread.CurrentCulture.Name, 'PsCraft.strings.psd1'))
     if (!$dataFile.Exists) { throw [System.IO.FileNotFoundException]::new('Unable to find the LocalizedData file.', 'PsCraft.strings.psd1') }
     $script:localizedData = [scriptblock]::Create("$([IO.File]::ReadAllText($dataFile))").Invoke() # same as "Get-LocalizedData -DefaultUICulture 'en-US'" but the cmdlet is not always installed
     #region    ScriptBlocks
@@ -114,7 +114,7 @@ Begin {
                 Write-Verbose "Add Module files ..."
                 try {
                     @(
-                        "$([System.Globalization.CultureInfo]::InstalledUICulture[0].Name)"
+                        "$([System.Threading.Thread]::CurrentThread.CurrentCulture.Name)"
                         "Private"
                         "Public"
                         "LICENSE"
