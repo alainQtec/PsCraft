@@ -1,4 +1,4 @@
-# [**PsCraft**](https://www.powershellgallery.com/packages/PsCraft/)
+# [**PsCraft Toolbox**](https://www.powershellgallery.com/packages/PsCraft/)
 
  "A PowerShell module generator module"
 
@@ -42,7 +42,7 @@ Pull requests are welcome! You can also contribute to this module by writing cod
 
 This project is licensed under the MIT License - see the [MIT License](https://alainQtec.MIT-license.org) for details.
 
-## Todos
+## Todos & Roadmap
 
 - [x] Add ast parser to the main class
 
@@ -51,4 +51,16 @@ This project is licensed under the MIT License - see the [MIT License](https://a
 - [ ] Add module directory tree generator
 
 - [ ] Use AI to generate tags
-<!-- Git version should be '{Major}.{Minor}.{Patch}.{env:BUILDCOUNT ?? 0}' -->
+
+- [ ] Integrate with vscode
+
+- [ ] Add customization options
+
+- [ ] Add wiki on github.
+
+- [ ] Enforce versioning. should be '{Major}.{Minor}.{Patch}.{env:BUILDCOUNT ?? 0}'
+
+- [ ] Publish to PsGallery
+ 
+- [ ] Improve/iterate the module based on feedback.
+
