@@ -814,14 +814,14 @@ Begin {
 }
 Process {
     Install-Module PsImport
-    (Import "Set-EnvironmentVariable,
+    $Fns = "Set-EnvironmentVariable,
             Get-LatestModuleVersion,
             Install-PsGalleryModule,
             Get-ModuleManifest,
             Get-LocalModule,
             Get-ModulePath,
-            Resolve-Module".Split(',')
-    ).ForEach({ . $_ })
+            Resolve-Module".Split(',').Trim()
+    (Get-Function $Fns).ForEach({ . $_ })
     if ($Help) {
         Write-Heading "Getting help"
         Write-BuildLog -c '"psake" | Resolve-Module @Mod_Res -Verbose'
