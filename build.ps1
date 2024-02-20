@@ -813,7 +813,8 @@ Begin {
     #endregion BuildHelper_Functions
 }
 Process {
-    Install-Module PsImport
+    # Install-Module PsImport
+    Import-Module PsImport
     $Fns = "Set-EnvironmentVariable,
             Get-LatestModuleVersion,
             Install-PsGalleryModule,
