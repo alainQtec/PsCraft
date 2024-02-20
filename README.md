@@ -49,25 +49,3 @@ Pull requests are welcome! You can also contribute to this module by writing cod
 
 This project is licensed under the MIT License - see the [MIT License](https://alainQtec.MIT-license.org) for details.
 
-## Todos & Roadmap
-
-- [x] Add ast parser to the main class
-
-- [ ] Add module manifest generator
-
-- [ ] Add module directory tree generator
-
-- [ ] Use AI to generate tags
-
-- [ ] Integrate with vscode
-
-- [ ] Add customization options
-
-- [ ] Add wiki on github.
-
-- [ ] Enforce versioning. should be '{Major}.{Minor}.{Patch}.{env:BUILDCOUNT ?? 0}'
-
-- [ ] Publish to PsGallery
- 
-- [ ] Improve/iterate the module based on feedback.
-
