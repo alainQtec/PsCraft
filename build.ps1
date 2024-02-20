@@ -1,10 +1,10 @@
 ﻿<#
 .SYNOPSIS
-    PsModuleGen buildScript
+    PsCraft buildScript
 .DESCRIPTION
-    A custom Psake buildScript for the module PsModuleGen.
+    A custom Psake buildScript for the module PsCraft.
 .LINK
-    https://github.com/alainQtec/PsModuleGen/blob/main/build.ps1
+    https://github.com/alainQtec/PsCraft/blob/main/build.ps1
 .EXAMPLE
     Running ./build.ps1 will only "Init, Compile & Import" the module; That's it, no tests.
     To run tests Use:
@@ -44,8 +44,8 @@ Begin {
     [Environment]::SetEnvironmentVariable('IsAC', $(if (![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('GITHUB_WORKFLOW'))) { '1' } else { '0' }), [System.EnvironmentVariableTarget]::Process)
     [Environment]::SetEnvironmentVariable('IsCI', $(if (![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('TF_BUILD'))) { '1' }else { '0' }), [System.EnvironmentVariableTarget]::Process)
     [Environment]::SetEnvironmentVariable('RUN_ID', $(if ([bool][int]$env:IsAC -or $env:CI -eq "true") { [Environment]::GetEnvironmentVariable('GITHUB_RUN_ID') }else { [Guid]::NewGuid().Guid.substring(0, 21).replace('-', [string]::Join('', (0..9 | Get-Random -Count 1))) + '_' }), [System.EnvironmentVariableTarget]::Process);
-    $dataFile = [System.IO.FileInfo]::new([IO.Path]::Combine($PSScriptRoot, "$([System.Globalization.CultureInfo]::InstalledUICulture[0].Name)", 'PsModuleGen.strings.psd1'))
-    if (!$dataFile.Exists) { throw [System.IO.FileNotFoundException]::new('Unable to find the LocalizedData file.', 'PsModuleGen.strings.psd1') }
+    $dataFile = [System.IO.FileInfo]::new([IO.Path]::Combine($PSScriptRoot, "$([System.Globalization.CultureInfo]::InstalledUICulture[0].Name)", 'PsCraft.strings.psd1'))
+    if (!$dataFile.Exists) { throw [System.IO.FileNotFoundException]::new('Unable to find the LocalizedData file.', 'PsCraft.strings.psd1') }
     $script:localizedData = [scriptblock]::Create("$([IO.File]::ReadAllText($dataFile))").Invoke() # same as "Get-LocalizedData -DefaultUICulture 'en-US'" but the cmdlet is not always installed
     #region    ScriptBlocks
     $script:PSake_ScriptBlock = [scriptblock]::Create({
@@ -245,7 +245,7 @@ Begin {
                     try {
                         [ValidateNotNullOrWhiteSpace()][string]$versionToDeploy = $versionToDeploy.ToString()
                         $manifest = Import-PowerShellDataFile -Path $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'PSModuleManifest'))
-                        $latest_Github_release = Invoke-WebRequest "https://api.github.com/repos/alainQtec/PsModuleGen/releases/latest" | ConvertFrom-Json
+                        $latest_Github_release = Invoke-WebRequest "https://api.github.com/repos/alainQtec/PsCraft/releases/latest" | ConvertFrom-Json
                         $latest_Github_release = [PSCustomObject]@{
                             name = $latest_Github_release.name
                             ver  = [version]::new($latest_Github_release.tag_name.substring(1))

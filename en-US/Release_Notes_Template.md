@@ -14,7 +14,7 @@
 
 ### Installation Guide
 
-1. Download the [ModuleZip](https://github.com/<gitUserName>/<ModuleName>/releases/download/v`versionToDeploy`/PsModuleGen.zip) file attached to the release.
+1. Download the [ModuleZip](https://github.com/<gitUserName>/<ModuleName>/releases/download/v`versionToDeploy`/PsCraft.zip) file attached to the release.
 2. **If on Windows**: Right-click the downloaded zip, select Properties, then unblock the file.
     > _This is to prevent having to unblock each file individually after unzipping._
 3. Unzip the archive.

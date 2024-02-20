@@ -1,5 +1,5 @@
 ﻿@{
-    ModuleName       = 'PsModuleGen'
+    ModuleName       = 'PsCraft'
     ModuleVersion    = [version]::new(0, 1, 0)
     rootLoader       = [scriptBlock]::create({
             #!/usr/bin/env pwsh
@@ -1199,7 +1199,7 @@
         }
     )
     FeatureTest      = [scriptBlock]::create({
-            Describe "Feature tests: PsModuleGen" {
+            Describe "Feature tests: PsCraft" {
                 Context "Feature 1" {
                     It "Does something expected" {
                         # Write tests to verify the behavior of a specific feature.
@@ -1221,7 +1221,7 @@
     )
     IntergrationTest = [scriptBlock]::create({
             # verify the interactions and behavior of the module's components when they are integrated together.
-            Describe "Integration tests: PsModuleGen" {
+            Describe "Integration tests: PsCraft" {
                 Context "Functionality Integration" {
                     It "Performs expected action" {
                         # Here you can write tests to simulate the usage of your functions and validate their behavior.

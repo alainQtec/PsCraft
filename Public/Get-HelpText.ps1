@@ -10,7 +10,7 @@ function Get-HelpText {
     .NOTES
         Information or caveats about the function e.g. 'This function is not supported in Linux'
     .LINK
-        https://github.com/alainQtec/devHelper/blob/main/Private/PsModuleGen/Public/Get-HelpText.ps1
+        https://github.com/alainQtec/devHelper/blob/main/Private/PsCraft/Public/Get-HelpText.ps1
     .EXAMPLE
         $helpText = Get-HelpText -Path "MymoduleName.psm1-Help.xml"
         Explanation of the function or its result. You can include multiple examples with additional .EXAMPLE lines

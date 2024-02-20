@@ -1,4 +1,4 @@
-Describe "Feature tests: PsModuleGen" {
+Describe "Feature tests: PsCraft" {
     Context "Feature 1" {
         It "Does something expected" {
             # Write tests to verify the behavior of a specific feature.

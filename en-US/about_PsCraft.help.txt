@@ -1,5 +1,5 @@
 TOPIC
-    about_PsModuleGen
+    about_PsCraft
 
 SHORT DESCRIPTION
     Common set of tools and patterns for module authoring by the community.

@@ -45,7 +45,7 @@ filter Convert-FolderSeparator {
 }
 
 # verify the interactions and behavior of the module's components when they are integrated together.
-Describe "Integration tests: PsModuleGen" {
+Describe "Integration tests: PsCraft" {
     Context "Functionality Integration" {
         It "Performs expected action" {
             # Here you can write tests to simulate the usage of your functions and validate their behavior.

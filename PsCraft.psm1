@@ -247,7 +247,7 @@ class PSmodule {
     }
     static [PSCustomObject] Get_Localized_Data([string]$RootPath) {
         [void][System.IO.Directory]::SetCurrentDirectory($RootPath)
-        $dataFile = [System.IO.FileInfo]::new([IO.Path]::Combine($RootPath, [System.Globalization.CultureInfo]::InstalledUICulture[0].Name, 'PsModuleGen.strings.psd1'))
+        $dataFile = [System.IO.FileInfo]::new([IO.Path]::Combine($RootPath, [System.Globalization.CultureInfo]::InstalledUICulture[0].Name, 'PsCraft.strings.psd1'))
         if (!$dataFile.Exists) { throw [System.IO.FileNotFoundException]::new('Unable to find the LocalizedData file!', $dataFile) }
         return [scriptblock]::Create("$([IO.File]::ReadAllText($dataFile))").Invoke()
     }
@@ -518,7 +518,7 @@ class AliasVisitor : System.Management.Automation.Language.AstVisitor {
     }
     [pscustomobject] GetParameters() {
         return [PSCustomObject]@{
-            PSTypeName  = "PSmoduleGen.AliasVisitor.AliasParameters"
+            PSTypeName  = "PsCraft.AliasVisitor.AliasParameters"
             Name        = $this.Name
             Command     = $this.Command
             Parameter   = $this.Parameter
@@ -535,7 +535,7 @@ class AliasVisitor : System.Management.Automation.Language.AstVisitor {
         return $this
     }
 }
-class PSmoduleGen {
+class PsCraft {
     static [ParseResult] ParseCode($Code) {
         # Parses the given code and returns an object with the AST, Tokens and ParseErrors
         Write-Debug "    ENTER: ConvertToAst $Code"
@@ -595,7 +595,7 @@ class PSmoduleGen {
         return (@($result, $Path.Substring($commonLength).TrimStart([IO.Path]::DirectorySeparatorChar)).Where{ $_ } -join ([IO.Path]::DirectorySeparatorChar))
     }
     static [string] GetResolvedPath([string]$Path) {
-        return [PSmoduleGen]::GetResolvedPath($((Get-Variable ExecutionContext).Value.SessionState), $Path)
+        return [PsCraft]::GetResolvedPath($((Get-Variable ExecutionContext).Value.SessionState), $Path)
     }
     static [string] GetResolvedPath([System.Management.Automation.SessionState]$session, [string]$Path) {
         $paths = $session.Path.GetResolvedPSPathFromPSPath($Path);
@@ -607,7 +607,7 @@ class PSmoduleGen {
         return $paths[0].Path
     }
     static [string] GetUnResolvedPath([string]$Path) {
-        return [PSmoduleGen]::GetUnResolvedPath($((Get-Variable ExecutionContext).Value.SessionState), $Path)
+        return [PsCraft]::GetUnResolvedPath($((Get-Variable ExecutionContext).Value.SessionState), $Path)
     }
     static [string] GetUnResolvedPath([System.Management.Automation.SessionState]$session, [string]$Path) {
         return $session.Path.GetUnresolvedProviderPathFromPSPath($Path)
@@ -617,7 +617,7 @@ class PSmoduleGen {
         $Module.Save()
     }
     static [void] Create_Dir([string]$Path) {
-        [PSmoduleGen]::Create_Dir([System.IO.DirectoryInfo]::new($Path))
+        [PsCraft]::Create_Dir([System.IO.DirectoryInfo]::new($Path))
     }
     static [void] Create_Dir([System.IO.DirectoryInfo]$Path) {
         [ValidateNotNullOrEmpty()][System.IO.DirectoryInfo]$Path = $Path
@@ -635,8 +635,8 @@ $CurrentCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture.Name
 $script:localizedData = if ($null -ne (Get-Command Get-LocalizedData -ErrorAction SilentlyContinue)) {
     Get-LocalizedData -DefaultUICulture $CurrentCulture
 } else {
-    $dataFile = [System.IO.FileInfo]::new([IO.Path]::Combine((Get-Location), $CurrentCulture, 'PsModuleGen.strings.psd1'))
-    if (!$dataFile.Exists) { throw [System.IO.FileNotFoundException]::new('Unable to find the LocalizedData file.', 'PsModuleGen.strings.psd1') }
+    $dataFile = [System.IO.FileInfo]::new([IO.Path]::Combine((Get-Location), $CurrentCulture, 'PsCraft.strings.psd1'))
+    if (!$dataFile.Exists) { throw [System.IO.FileNotFoundException]::new('Unable to find the LocalizedData file.', 'PsCraft.strings.psd1') }
     [scriptblock]::Create("$([IO.File]::ReadAllText($dataFile))").Invoke()
 }
 

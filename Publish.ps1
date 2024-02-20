@@ -15,7 +15,7 @@
 
 .LICENSEURI
 
-.PROJECTURI https://github.com/alainQtec/PsModuleGen
+.PROJECTURI https://github.com/alainQtec/PsCraft
 
 .ICONURI
 
