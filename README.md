@@ -1,8 +1,6 @@
 # [**PsCraft Toolbox**](https://www.powershellgallery.com/packages/PsCraft/)
 
- "A PowerShell module generator module"
-
-Helps to easily create a new PowerShell module.
+PsCraft Toolbox provides cmdlets to speed up common PowerShell development tasks.
 
 [![CI](https://github.com/alainQtec/PsCraft/actions/workflows/CI.yaml/badge.svg)](https://github.com/alainQtec/PsCraft/actions/workflows/CI.yaml)
 [![Publish to PowerShell Gallery](https://github.com/alainQtec/PsCraft/actions/workflows/Publish.yaml/badge.svg)](https://github.com/alainQtec/PsCraft/actions/workflows/Publish.yaml)
