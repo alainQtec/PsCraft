@@ -17,6 +17,15 @@ PsCraft Toolbox provides cmdlets to speed up common PowerShell development tasks
     Install-Module PsCraft
     ```
 
+## Features
+
+- **Module Creation**: Build robust modules with ease using intuitive commands for cmdlets, functions, variables, and more.
+
+- **Module Management**: Import, export, update, and remove modules with ease, ensuring smooth integration and version control.
+- **Secure Your Code**: Sign your modules and scripts with digital signatures for enhanced security and trust.
+
+- **Build GUIs faster**: Create intuitive graphical interfaces for your modules, making them accessible and interactive for all users.
+
 ## Usage
 
 - Import the module:
