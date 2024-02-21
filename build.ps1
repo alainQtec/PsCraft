@@ -1,19 +1,17 @@
-﻿<#
-.SYNOPSIS
-    PsCraft buildScript
-.DESCRIPTION
-    A custom Psake buildScript for the module PsCraft.
-.LINK
-    https://github.com/alainQtec/PsCraft/blob/main/build.ps1
-.EXAMPLE
-    Running ./build.ps1 will only "Init, Compile & Import" the module; That's it, no tests.
-    To run tests Use:
-    ./build.ps1 -Task Test
-    This Will build the module, Import it and run tests using the ./Test-Module.ps1 script.
-.EXAMPLE
-    ./build.ps1 -Task deploy
-    Will build the module, test it and deploy it to PsGallery
-#>
+﻿# .SYNOPSIS
+#     PsCraft buildScript
+# .DESCRIPTION
+#     A custom Psake buildScript for the module PsCraft.
+# .LINK
+#     https://github.com/alainQtec/PsCraft/blob/main/build.ps1
+# .EXAMPLE
+#     Running ./build.ps1 will only "Init, Compile & Import" the module; That's it, no tests.
+#     To run tests Use:
+#     ./build.ps1 -Task Test
+#     This Will build the module, Import it and run tests using the ./Test-Module.ps1 script.
+# .EXAMPLE
+#     ./build.ps1 -Task deploy
+#     Will build the module, test it and deploy it to PsGallery
 [cmdletbinding(DefaultParameterSetName = 'task')]
 param(
     [parameter(Position = 0, ParameterSetName = 'task')]
@@ -320,12 +318,12 @@ Begin {
             ) | Resolve-Module -UpdateModule -Verbose
             $Host.UI.WriteLine()
             Write-CommandLog "Module Requirements Successfully resolved."
-            $null = Set-Content -Path $Psake_BuildFile -Value $PSake_ScriptBlock
+            $null = Set-Content -Path $PsakeBuildScript -Value $PSake_ScriptBlock
 
             Write-Heading "Invoking psake with task list: [ $($Task -join ', ') ]"
             $psakeParams = @{
                 nologo    = $true
-                buildFile = $Psake_BuildFile.FullName
+                buildFile = $PsakeBuildScript.FullName
                 taskList  = $Task
             }
             if ($Task -contains 'TestOnly') {
@@ -335,7 +333,7 @@ Begin {
             }
             Invoke-psake @psakeParams @verbose
             $Host.UI.WriteLine()
-            Remove-Item $Psake_BuildFile -Verbose | Out-Null
+            Remove-Item $PsakeBuildScript -Verbose | Out-Null
             $Host.UI.WriteLine()
         }
     )
@@ -365,7 +363,7 @@ Begin {
         }
     )
     #endregion ScriptBlockss
-    $Psake_BuildFile = New-Item $([IO.Path]::GetTempFileName().Replace('.tmp', '.ps1'))
+    $PsakeBuildScript = New-Item $([IO.Path]::GetTempFileName().Replace('.tmp', '.ps1'))
     $verbose = @{}
     if ($PSBoundParameters.ContainsKey('Verbose')) {
         $verbose['Verbose'] = $PSBoundParameters['Verbose']
@@ -680,12 +678,12 @@ Process {
         Resolve-Module
     }.ToString().Split("`n").Trim().Where({ ![string]::IsNullOrWhiteSpace($_) })
     #TODO: (Get-Functions $FnNames "https://gist.github.com/alainQtec/bf182c27352236c6af712c243e485157#file-psgallery_helper_functions-ps1").ForEach({ . $_ })
-    (Get-Functions $FnNames).ForEach({ . $_ })
+    (Get-Function $FnNames).ForEach({ . $_ })
     if ($Help) {
         Write-Heading "Getting help"
         Write-CommandLog -c '"psake" | Resolve-Module @Mod_Res -Verbose'
         Resolve-Module -Name 'psake' -Verbose:$false
-        Get-PSakeScriptTasks -buildFile $Psake_BuildFile.FullName | Sort-Object -Property Name | Format-Table -Property Name, Description, Alias, DependsOn
+        Get-PSakeScriptTasks -buildFile $PsakeBuildScript.FullName | Sort-Object -Property Name | Format-Table -Property Name, Description, Alias, DependsOn
         exit 0
     }
     Set-BuildVariables -Path $PSScriptRoot -Prefix $env:RUN_ID
@@ -704,14 +702,11 @@ Process {
             'Install-Module:Verbose'     = $false
         }
     }
-    Write-Heading "Prepare package feeds"
-    $Host.ui.WriteLine()
+    Write-Heading "Prepare package feeds"; $Host.ui.WriteLine()
     if ($null -eq (Get-PSRepository -Name PSGallery -ErrorAction Ignore)) {
         Unregister-PSRepository -Name PSGallery -Verbose:$false -ErrorAction Ignore
         Register-PSRepository -Default -InstallationPolicy Trusted
     }
-    Write-Heading "Prepare package feeds"
-    . $script:PsGallery_Helper_Functions
     if (!(Get-Command dotnet -ErrorAction Ignore) -and ![bool][int]$env:IsAC) {
         Write-Heading "Resolve publish dependency [dotnet sdk]`n" -ForegroundColor Magenta
         Invoke-CommandWithLog {
@@ -735,11 +730,12 @@ Process {
         }
     }
     #  dotnet dev-certs https --trust (I commented this out because running this on mac takes for ever!)
+    Write-Heading "Resolve PackageProvider [Nuget]`n"
     Invoke-CommandWithLog { Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false }
     if (!(Get-PackageProvider -Name Nuget)) {
         Invoke-CommandWithLog { Install-PackageProvider -Name NuGet -Force | Out-Null }
     }
-    Resolve-PackageProviders; $Host.ui.WriteLine(); $null = Import-PackageProvider -Name NuGet -Force
+    $null = Import-PackageProvider -Name NuGet -Force
     foreach ($Name in @('PackageManagement', 'PowerShellGet')) {
         $Host.UI.WriteLine(); Resolve-Module -Name $Name -UpdateModule -Verbose:$script:DefaultParameterValues['*-Module:Verbose'] -ErrorAction Stop
     }

@@ -50,4 +50,3 @@ Pull requests are welcome! You can also contribute to this module by writing cod
 ## License
 
 This project is licensed under the MIT License - see the [MIT License](https://alainQtec.MIT-license.org) for details.
-
