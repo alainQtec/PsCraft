@@ -40,7 +40,7 @@
         $AST = [System.Management.Automation.Language.Parser]::ParseFile( $Path, [ref]$Tokens, [ref]$ParseErrors )
 
         $KeyValue = $Ast.EndBlock.Statements
-        $KeyValue = @(FindHashKeyValue $PropertyName $KeyValue)
+        $KeyValue = @(Find-HashKeyValue $PropertyName $KeyValue)
         if ($KeyValue.Count -eq 0) {
             Write-Error -Exception System.Management.Automation.ItemNotFoundException -Message "Can't find '$PropertyName' in $Path" -ErrorId "PropertyNotFound,Metadata\Get-Metadata" -Category "ObjectNotFound"
             return

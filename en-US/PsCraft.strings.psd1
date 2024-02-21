@@ -373,7 +373,7 @@
                             "PSScriptAnalyzer"
                         )
                         $Host.UI.WriteLine()
-                        Write-BuildLog "Module Requirements Successfully resolved."
+                        Write-CommandLog "Module Requirements Successfully resolved."
                         $null = Set-Content -Path $Psake_BuildFile -Value $PSake_ScriptBlock
 
                         Write-Heading "Invoking psake with task list: [ $($Task -join ', ') ]"
@@ -405,12 +405,12 @@
                             $OldEnvNames = [Environment]::GetEnvironmentVariables().Keys | Where-Object { $_ -like "$build_Id*" }
                             if ($OldEnvNames.Count -gt 0) {
                                 foreach ($Name in $OldEnvNames) {
-                                    Write-BuildLog "Remove env variable $Name"
+                                    Write-CommandLog "Remove env variable $Name"
                                     [Environment]::SetEnvironmentVariable($Name, $null)
                                 }
                                 [Console]::WriteLine()
                             } else {
-                                Write-BuildLog "No old Env variables to remove; Move on ...`n"
+                                Write-CommandLog "No old Env variables to remove; Move on ...`n"
                             }
                         } else {
                             Write-Warning "Invalid RUN_ID! Skipping ...`n"
@@ -534,7 +534,7 @@
                             $LocEnvFile = [IO.FileInfo]::New([IO.Path]::GetFullPath([IO.Path]::Combine($Path, '.env')))
                             if (!$LocEnvFile.Exists) {
                                 New-Item -Path $LocEnvFile.FullName -ItemType File -ErrorAction Stop
-                                Write-BuildLog "Created a new .env file"
+                                Write-CommandLog "Created a new .env file"
                             }
                             # Set all Default/Preset Env: variables from the .env
                             [dotEnv]::Set($LocEnvFile);
@@ -577,7 +577,7 @@
                     . $(Get-Variable PsGallery_Helper_Functions -ValueOnly -Scope global)
                     Resolve-module -Name $Names
                 }
-                function Write-BuildLog {
+                function Write-CommandLog {
                     [CmdletBinding()]
                     param(
                         [parameter(Mandatory, Position = 0, ValueFromRemainingArguments, ValueFromPipeline)]
@@ -690,7 +690,7 @@
                         [String[]]$Value
                     )
                     $FullVal = $Value -join " "
-                    Write-BuildLog "Setting env variable '$Name' to '$fullVal'"
+                    Write-CommandLog "Setting env variable '$Name' to '$fullVal'"
                     Set-Item -Path ([IO.Path]::Combine('Env:', $Name)) -Value $FullVal -Force
                 }
                 function Invoke-CommandWithLog {
@@ -699,7 +699,7 @@
                         [parameter(Mandatory, Position = 0)]
                         [ScriptBlock]$ScriptBlock
                     )
-                    Write-BuildLog -Command ($ScriptBlock.ToString() -join "`n"); $ScriptBlock.Invoke()
+                    Write-CommandLog -Command ($ScriptBlock.ToString() -join "`n"); $ScriptBlock.Invoke()
                 }
                 function Write-Heading {
                     param(
@@ -734,7 +734,7 @@
                         ''
                     ) | Write-Host
                 }
-                function FindHashKeyValue {
+                function Find-HashKeyValue {
                     [CmdletBinding()]
                     param(
                         $SearchPath,
@@ -742,7 +742,7 @@
                         [string[]]
                         $CurrentPath = @()
                     )
-                    # Write-Debug "FindHashKeyValue: $SearchPath -eq $($CurrentPath -Join '.')"
+                    # Write-Debug "Find-HashKeyValue: $SearchPath -eq $($CurrentPath -Join '.')"
                     if ($SearchPath -eq ($CurrentPath -Join '.') -or $SearchPath -eq $CurrentPath[-1]) {
                         return $Ast |
                             Add-Member NoteProperty HashKeyPath ($CurrentPath -join '.') -PassThru -Force | Add-Member NoteProperty HashKeyName ($CurrentPath[-1]) -PassThru -Force
@@ -751,7 +751,7 @@
                     if ($Ast.PipelineElements.Expression -is [System.Management.Automation.Language.HashtableAst] ) {
                         $KeyValue = $Ast.PipelineElements.Expression
                         foreach ($KV in $KeyValue.KeyValuePairs) {
-                            $result = FindHashKeyValue $SearchPath -Ast $KV.Item2 -CurrentPath ($CurrentPath + $KV.Item1.Value)
+                            $result = Find-HashKeyValue $SearchPath -Ast $KV.Item2 -CurrentPath ($CurrentPath + $KV.Item1.Value)
                             if ($null -ne $result) {
                                 $result
                             }
@@ -798,7 +798,7 @@
                         $AST = [System.Management.Automation.Language.Parser]::ParseFile( $Path, [ref]$Tokens, [ref]$ParseErrors )
 
                         $KeyValue = $Ast.EndBlock.Statements
-                        $KeyValue = @(FindHashKeyValue $PropertyName $KeyValue)
+                        $KeyValue = @(Find-HashKeyValue $PropertyName $KeyValue)
                         if ($KeyValue.Count -eq 0) {
                             Write-Error -Exception System.Management.Automation.ItemNotFoundException -Message "Can't find '$PropertyName' in $Path" -ErrorId "PropertyNotFound,Metadata\Get-Metadata" -Category "ObjectNotFound"
                             return
@@ -1100,7 +1100,7 @@
                     }
                     $Local_PSRepo = [IO.DirectoryInfo]::new("$RepoPath")
                     if ($Local_PSRepo.Exists) {
-                        Write-BuildLog "Remove 'local' repository"
+                        Write-CommandLog "Remove 'local' repository"
                         if ($null -ne (Get-PSRepository -Name 'LocalPSRepo' -ErrorAction Ignore)) {
                             Invoke-Command -ScriptBlock ([ScriptBlock]::Create("Unregister-PSRepository -Name 'LocalPSRepo' -Verbose -ErrorAction Ignore"))
                         }; Remove-Item "$Local_PSRepo" -Force -Recurse -ErrorAction Ignore

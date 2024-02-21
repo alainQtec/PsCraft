@@ -8,6 +8,6 @@
         [String[]]$Value
     )
     $FullVal = $Value -join " "
-    Write-BuildLog "Setting env variable '$Name' to '$fullVal'"
+    Write-CommandLog "Setting env variable '$Name' to '$fullVal'"
     Set-Item -Path ([IO.Path]::Combine('Env:', $Name)) -Value $FullVal -Force
 }

@@ -304,7 +304,7 @@ Begin {
                         }
                     } catch {
                         $_ | Format-List * -Force
-                        Write-BuildError $_
+                        Write-Error $_
                     }
                 } else {
                     Write-Host -ForegroundColor Magenta "UNKNOWN Build system"
@@ -319,7 +319,7 @@ Begin {
                 "PSScriptAnalyzer"
             ) | Resolve-Module -UpdateModule -Verbose
             $Host.UI.WriteLine()
-            Write-BuildLog "Module Requirements Successfully resolved."
+            Write-CommandLog "Module Requirements Successfully resolved."
             $null = Set-Content -Path $Psake_BuildFile -Value $PSake_ScriptBlock
 
             Write-Heading "Invoking psake with task list: [ $($Task -join ', ') ]"
@@ -351,12 +351,12 @@ Begin {
                 $OldEnvNames = [Environment]::GetEnvironmentVariables().Keys | Where-Object { $_ -like "$build_Id*" }
                 if ($OldEnvNames.Count -gt 0) {
                     foreach ($Name in $OldEnvNames) {
-                        Write-BuildLog "Remove env variable $Name"
+                        Write-CommandLog "Remove env variable $Name"
                         [Environment]::SetEnvironmentVariable($Name, $null)
                     }
                     [Console]::WriteLine()
                 } else {
-                    Write-BuildLog "No old Env variables to remove; Move on ...`n"
+                    Write-CommandLog "No old Env variables to remove; Move on ...`n"
                 }
             } else {
                 Write-Warning "Invalid RUN_ID! Skipping ...`n"
@@ -467,7 +467,7 @@ Begin {
                 $LocEnvFile = [IO.FileInfo]::New([IO.Path]::GetFullPath([IO.Path]::Combine($Path, '.env')))
                 if (!$LocEnvFile.Exists) {
                     New-Item -Path $LocEnvFile.FullName -ItemType File -ErrorAction Stop
-                    Write-BuildLog "Created a new .env file"
+                    Write-CommandLog "Created a new .env file"
                 }
                 # Set all Default/Preset Env: variables from the .env
                 [dotEnv]::Set($LocEnvFile);
@@ -501,49 +501,6 @@ Begin {
             Set-EnvironmentVariable -Name ('{0}{1}' -f $env:RUN_ID, 'ReleaseNotes') -Value $script:localizedData.ReleaseNotes
         }
     }
-    function Write-TerminatingError {
-        <#
-        .SYNOPSIS
-            Utility to throw an errorrecord
-        .DESCRIPTION
-            Utility to create ErrorRecords on systems that don't have ThrowError BuiltIn (ie: $PowerShellversion -lt core-6.1.0-windows)
-        #>
-        [CmdletBinding()]
-        [OutputType([System.Management.Automation.ErrorRecord])]
-        param (
-            [parameter(Mandatory = $true)]
-            [ValidateNotNullOrEmpty()]
-            [System.Management.Automation.PSCmdlet]
-            $CallerPSCmdlet,
-
-            [parameter(Mandatory = $true)]
-            [ValidateNotNullOrEmpty()]
-            [System.String]
-            $ExceptionName,
-
-            [parameter(Mandatory = $true)]
-            [ValidateNotNullOrEmpty()]
-            [System.String]
-            $ExceptionMessage,
-
-            [System.Object]
-            $ExceptionObject,
-
-            [parameter(Mandatory = $true)]
-            [ValidateNotNullOrEmpty()]
-            [System.String]
-            $ErrorId,
-
-            [parameter(Mandatory = $true)]
-            [ValidateNotNull()]
-            [System.Management.Automation.ErrorCategory]
-            $ErrorCategory
-        )
-
-        $exception = New-Object $ExceptionName $ExceptionMessage;
-        $errorRecord = New-Object System.Management.Automation.ErrorRecord $exception, $ErrorId, $ErrorCategory, $ExceptionObject
-        $CallerPSCmdlet.ThrowTerminatingError($errorRecord)
-    }
     function New-Directory {
         [CmdletBinding(SupportsShouldProcess = $true, DefaultParameterSetName = 'str')]
         param (
@@ -558,116 +515,13 @@ Begin {
             [Array]::Reverse($nF); $nF | ForEach-Object { $_.Create() }
         }
     }
-    function Write-BuildLog {
-        [CmdletBinding()]
-        param(
-            [parameter(Mandatory, Position = 0, ValueFromRemainingArguments, ValueFromPipeline)]
-            [System.Object]$Message,
-
-            [parameter()]
-            [Alias('c', 'Command')]
-            [Switch]$Cmd,
-
-            [parameter()]
-            [Alias('w')]
-            [Switch]$Warning,
-
-            [parameter()]
-            [Alias('s', 'e')]
-            [Switch]$Severe,
-
-            [parameter()]
-            [Alias('x', 'nd', 'n')]
-            [Switch]$Clean
-        )
-        Begin {
-            if ($PSBoundParameters.ContainsKey('Debug') -and $PSBoundParameters['Debug'] -eq $true) {
-                $fg = 'Yellow'
-                $lvl = '##[debug]   '
-            } elseif ($PSBoundParameters.ContainsKey('Verbose') -and $PSBoundParameters['Verbose'] -eq $true) {
-                $fg = if ($Host.UI.RawUI.ForegroundColor -eq 'Gray') {
-                    'White'
-                } else {
-                    'Gray'
-                }
-                $lvl = '##[Verbose] '
-            } elseif ($Severe) {
-                $fg = 'Red'
-                $lvl = '##[Error]   '
-            } elseif ($Warning) {
-                $fg = 'Yellow'
-                $lvl = '##[Warning] '
-            } elseif ($Cmd) {
-                $fg = 'Magenta'
-                $lvl = '##[Command] '
-            } else {
-                $fg = if ($Host.UI.RawUI.ForegroundColor -eq 'Gray') {
-                    'White'
-                } else {
-                    'Gray'
-                }
-                $lvl = '##[Info]    '
-            }
-        }
-        Process {
-            $fmtMsg = if ($Clean) {
-                $Message -split "[\r\n]" | Where-Object { $_ } | ForEach-Object {
-                    $lvl + $_
-                }
-            } else {
-                $date = "$(Get-Elapsed) "
-                if ($Cmd) {
-                    $i = 0
-                    $Message -split "[\r\n]" | Where-Object { $_ } | ForEach-Object {
-                        $tag = if ($i -eq 0) {
-                            'PS > '
-                        } else {
-                            '  >> '
-                        }
-                        $lvl + $date + $tag + $_
-                        $i++
-                    }
-                } else {
-                    $Message -split "[\r\n]" | Where-Object { $_ } | ForEach-Object {
-                        $lvl + $date + $_
-                    }
-                }
-            }
-            Write-Host -ForegroundColor $fg $($fmtMsg -join "`n")
-        }
-    }
-    function Write-BuildWarning {
-        param(
-            [parameter(Mandatory, Position = 0, ValueFromRemainingArguments, ValueFromPipeline)]
-            [System.String]$Message
-        )
-        Process {
-            if ([bool][int]$env:IsCI) {
-                Write-Host "##vso[task.logissue type=warning; ]$Message"
-            } else {
-                Write-Warning $Message
-            }
-        }
-    }
-    function Write-BuildError {
-        param(
-            [parameter(Mandatory, Position = 0, ValueFromRemainingArguments, ValueFromPipeline)]
-            [System.String]$Message
-        )
-        Process {
-            if ([bool][int]$env:IsCI) {
-                Write-Host "##vso[task.logissue type=error; ]$Message"
-            }
-            Write-Error $Message
-        }
-    }
     function Invoke-CommandWithLog {
         [CmdletBinding()]
         Param (
             [parameter(Mandatory, Position = 0)]
             [ScriptBlock]$ScriptBlock
         )
-        Write-BuildLog -Command ($ScriptBlock.ToString() -join "`n"); $ScriptBlock.Invoke()
+        Write-CommandLog -Command ($ScriptBlock.ToString() -join "`n"); $ScriptBlock.Invoke()
     }
     function Write-Heading {
         param(
@@ -702,7 +556,7 @@ Begin {
             ''
         ) | Write-Host
     }
-    function FindHashKeyValue {
+    function Find-HashKeyValue {
         [CmdletBinding()]
         param(
             $SearchPath,
@@ -712,14 +566,13 @@ Begin {
         )
         # Write-Debug "FindHashKeyValue: $SearchPath -eq $($CurrentPath -Join '.')"
         if ($SearchPath -eq ($CurrentPath -Join '.') -or $SearchPath -eq $CurrentPath[-1]) {
-            return $Ast |
-                Add-Member NoteProperty HashKeyPath ($CurrentPath -join '.') -PassThru -Force | Add-Member NoteProperty HashKeyName ($CurrentPath[-1]) -PassThru -Force
+            return $Ast | Add-Member NoteProperty HashKeyPath ($CurrentPath -join '.') -PassThru -Force | Add-Member NoteProperty HashKeyName ($CurrentPath[-1]) -PassThru -Force
         }
 
         if ($Ast.PipelineElements.Expression -is [System.Management.Automation.Language.HashtableAst] ) {
             $KeyValue = $Ast.PipelineElements.Expression
             foreach ($KV in $KeyValue.KeyValuePairs) {
-                $result = FindHashKeyValue $SearchPath -Ast $KV.Item2 -CurrentPath ($CurrentPath + $KV.Item1.Value)
+                $result = Find-HashKeyValue $SearchPath -Ast $KV.Item2 -CurrentPath ($CurrentPath + $KV.Item1.Value)
                 if ($null -ne $result) {
                     $result
                 }
@@ -815,17 +668,22 @@ Begin {
 Process {
     # Install-Module PsImport
     Import-Module PsImport
-    $Fns = "Set-EnvironmentVariable,
-            Get-LatestModuleVersion,
-            Install-PsGalleryModule,
-            Get-ModuleManifest,
-            Get-LocalModule,
-            Get-ModulePath,
-            Resolve-Module".Split(',').Trim()
-    (Get-Function $Fns).ForEach({ . $_ })
+    $FnNames = {
+        Install-PsGalleryModule
+        Set-EnvironmentVariable
+        Get-LatestModuleVersion
+        Write-TerminatingError
+        Get-ModuleManifest
+        Write-CommandLog
+        Get-LocalModule
+        Get-ModulePath
+        Resolve-Module
+    }.ToString().Split("`n").Trim().Where({ ![string]::IsNullOrWhiteSpace($_) })
+    #TODO: (Get-Functions $FnNames "https://gist.github.com/alainQtec/bf182c27352236c6af712c243e485157#file-psgallery_helper_functions-ps1").ForEach({ . $_ })
+    (Get-Functions $FnNames).ForEach({ . $_ })
     if ($Help) {
         Write-Heading "Getting help"
-        Write-BuildLog -c '"psake" | Resolve-Module @Mod_Res -Verbose'
+        Write-CommandLog -c '"psake" | Resolve-Module @Mod_Res -Verbose'
         Resolve-Module -Name 'psake' -Verbose:$false
         Get-PSakeScriptTasks -buildFile $Psake_BuildFile.FullName | Sort-Object -Property Name | Format-Table -Property Name, Description, Alias, DependsOn
         exit 0
@@ -960,7 +818,7 @@ Process {
         }
         $Local_PSRepo = [IO.DirectoryInfo]::new("$RepoPath")
         if ($Local_PSRepo.Exists) {
-            Write-BuildLog "Remove 'local' repository"
+            Write-CommandLog "Remove 'local' repository"
             if ($null -ne (Get-PSRepository -Name 'LocalPSRepo' -ErrorAction Ignore)) {
                 Invoke-Command -ScriptBlock ([ScriptBlock]::Create("Unregister-PSRepository -Name 'LocalPSRepo' -Verbose -ErrorAction Ignore"))
             }; Remove-Item "$Local_PSRepo" -Force -Recurse -ErrorAction Ignore
