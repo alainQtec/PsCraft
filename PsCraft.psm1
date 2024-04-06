@@ -300,12 +300,12 @@ class PSmodule {
             $moduleFile = "$((Join-Path $path $moduleName)).psd1"
             $file = Import-PowerShellDataFile $moduleFile;
             [version]$version = ($file).ModuleVersion
-            [version]$newVersion = "{0}.{1}.{2}" -f $version.Major, $version.Minor, ($version.Build + 1) 
+            [version]$newVersion = "{0}.{1}.{2}" -f $version.Major, $version.Minor, ($version.Build + 1)
             Update-ModuleManifest -Path "$((Join-Path $Path $moduleName)).psd1" -FunctionsToExport $functions -ModuleVersion $newVersion;
-        } else{
+        } else {
             Update-ModuleManifest -Path "$((Join-Path $Path $moduleName)).psd1" -FunctionsToExport $functions;
         }
-        Publish-Module -Path $Path -NugetAPIKey $ApiKey;
+        Publish-Module -Path $Path -NuGetApiKey $ApiKey;
 
         Write-Host "Module $moduleName published";
     }
@@ -341,7 +341,7 @@ class PSmodule {
                 # $OS::IsBrowser() {  }
                 # $OS::IsTvOS() {  }
                 # $OS::IsIOS() {  }
-                # $OS::IsFreeBSD() {  }                  
+                # $OS::IsFreeBSD() {  }
                 # $OS::IsAndroid() {  }
                 # $OS::IsWatchOS() {  }
                 Default {
@@ -509,7 +509,7 @@ class AliasVisitor : System.Management.Automation.Language.AstVisitor {
                     Write-Verbose -Message "Alias '$($Params.Name)' is removed by line $($ast.Extent.StartLineNumber): $($ast.Extent.Text)"
                     $this.Aliases.Remove($Params.Name)
                 }
-            # We don't need to export global aliases, because they broke out already
+                # We don't need to export global aliases, because they broke out already
             } elseif ($Params.Name -and $Params.Scope -ine 'Global') {
                 $this.Aliases.Add($this.Parameters.Name)
             }
@@ -518,12 +518,12 @@ class AliasVisitor : System.Management.Automation.Language.AstVisitor {
     }
     [pscustomobject] GetParameters() {
         return [PSCustomObject]@{
-            PSTypeName  = "PsCraft.AliasVisitor.AliasParameters"
-            Name        = $this.Name
-            Command     = $this.Command
-            Parameter   = $this.Parameter
-            Value       = $this.Value
-            Scope       = $this.Scope
+            PSTypeName = "PsCraft.AliasVisitor.AliasParameters"
+            Name       = $this.Name
+            Command    = $this.Command
+            Parameter  = $this.Parameter
+            Value      = $this.Value
+            Scope      = $this.Scope
         }
     }
     [AliasVisitor] ClearParameters() {
@@ -613,7 +613,7 @@ class PsCraft {
         return $session.Path.GetUnresolvedProviderPathFromPSPath($Path)
     }
     static [void] CreateModuleFolderStructure([PSmodule]$Module) {
-        # do stuff
+        #TODO: Do stuff before saving the module. (fs preparation & cheking requirements)
         $Module.Save()
     }
     static [void] Create_Dir([string]$Path) {
