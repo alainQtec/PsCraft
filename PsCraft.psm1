@@ -150,11 +150,11 @@ class PSmodule {
             [PSmodule]::LocalizedData = [PSmodule]::Get_Localized_Data()
         }
         [PSmodule]::LocalizedData.Keys.ForEach({
-                $str = $(([PSmodule]::LocalizedData.$_).ToString().Split("`n") -as [string[]]).foreach({
-                        if ($_.Length -ge 12) { $_.Substring(12) }
-                    }
-                )
-                $src = [string]::Join("`n", $str); $tokens = $errors = $null
+                # $str = $(([PSmodule]::LocalizedData.$_).ToString().Split("`n") -as [string[]]).foreach({
+                #         if ($_.Length -ge 12) { $_.Substring(12) }
+                #     }
+                # )
+                $src = [PSmodule]::LocalizedData.$_; $tokens = $errors = $null
                 $ast = [System.Management.Automation.Language.Parser]::ParseInput($src, [ref]$tokens, [ref]$errors)
                 $val = [scriptBlock]::Create("$($ast.Extent.Text)")
                 [PSmodule]::LocalizedData | Add-Member -Name $_ -Value $val -MemberType NoteProperty -Force
