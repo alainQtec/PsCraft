@@ -647,6 +647,7 @@ $PrivateModules = [string[]](Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'P
 if ($PrivateModules.Count -gt 0) {
     foreach ($Module in $PrivateModules) {
         Try {
+            if ([string]::IsNullOrWhiteSpace($Module)) { continue }
             Import-Module $Module -ErrorAction Stop
         } Catch {
             Write-Error "Failed to import module $Module : $_"
@@ -656,6 +657,7 @@ if ($PrivateModules.Count -gt 0) {
 # Dot source the files
 foreach ($Import in ($Public, $Private)) {
     Try {
+        if ([string]::IsNullOrWhiteSpace($Import.fullname)) { continue }
         . $Import.fullname
     } Catch {
         Write-Warning "Failed to import function $($Import.BaseName): $_"
