@@ -4,9 +4,10 @@
     # .DESCRIPTION
     # Its like using Get-InstalledModule but you can even find unregistered/"manually Installed" modules. (as long as they are in any of $env:PsmodulePath folders)
     # .EXAMPLE
+    # .OUTPUTS
+    #  [LocalPsModule]
     # Get-LocalModule psake | Select-Object -ExpandProperty Path | Import-Module -Verbose
     [CmdletBinding()]
-    [OutputType([LocalPsModule])]
     param (
         # The name of the installed module to search on the machine.
         [Parameter(Mandatory = $true, Position = 0)]
