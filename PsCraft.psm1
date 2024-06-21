@@ -647,28 +647,27 @@ $PrivateModules = [string[]](Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'P
 if ($PrivateModules.Count -gt 0) {
     foreach ($Module in $PrivateModules) {
         Try {
-            if ([string]::IsNullOrWhiteSpace($Module)) { continue }
             Import-Module $Module -ErrorAction Stop
         } Catch {
             Write-Error "Failed to import module $Module : $_"
         }
     }
 }
-# Dot source the files
-foreach ($Import in ($Public, $Private)) {
+foreach ($Import in $($Public + $Private)) {
     Try {
         if ([string]::IsNullOrWhiteSpace($Import.fullname)) { continue }
-        . $Import.fullname
+        . "$($Import.fullname)"
     } Catch {
         Write-Warning "Failed to import function $($Import.BaseName): $_"
         $host.UI.WriteErrorLine($_)
     }
 }
-# Export Public Functions
-$Param = @{
-    Function = $Public.BaseName
-    Variable = '*'
-    Cmdlet   = '*'
-    Alias    = '*'
+if ([IO.path]::GetExtension($MyInvocation.MyCommand.Path) -eq '.psm1') {
+    $Param = @{
+        Function = $Public.BaseName
+        Variable = 'localizedData'
+        Cmdlet   = '*'
+        Alias    = '*'
+    }
+    Export-ModuleMember @Param -Verbose
 }
-Export-ModuleMember @Param -Verbose
