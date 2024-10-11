@@ -49,14 +49,14 @@ function Find-InstalledModule {
   process {
     try {
       $res = switch ($true) {
-        $($hsn -and $hss -and $hsv) { [LocalPsModule]::Find($Name, $Scope, $Version); break }
-        $($hsn -and $hss) { [LocalPsModule]::Find($Name, $Scope); break }
-        $($hsn -and $hsv) { [LocalPsModule]::Find($Name, $Version); break }
-        $($hsm -and $hsn) { [LocalPsModule]::Find($Name, $ModuleBase); break }
-        $hsn { [LocalPsModule]::Find($Name); break }
-        $hsm { [LocalPsModule]::Find($ModuleBase.FullName); break }
+        $($hsn -and $hss -and $hsv) { [PsCraft]::FindLocalPsModule($Name, $Scope, $Version); break }
+        $($hsn -and $hss) { [PsCraft]::FindLocalPsModule($Name, $Scope); break }
+        $($hsn -and $hsv) { [PsCraft]::FindLocalPsModule($Name, $Version); break }
+        $($hsm -and $hsn) { [PsCraft]::FindLocalPsModule($Name, $ModuleBase); break }
+        $hsn { [PsCraft]::FindLocalPsModule($Name); break }
+        $hsm { [PsCraft]::FindLocalPsModule($ModuleBase.FullName); break }
         Default {
-          [LocalPsModule]::Find("*")
+          [PsCraft]::FindLocalPsModule("*")
         }
       }
     } catch {
