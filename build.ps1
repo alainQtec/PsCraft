@@ -3,10 +3,10 @@
 # .DESCRIPTION
 #   A build script that uses its own module. 🗿
 # .LINK
-#   https://github.com/alainQtec/cliHelper.XConvert/blob/main/build.ps1
+#   https://github.com/alainQtec/PsCraft/blob/main/build.ps1
 # .NOTES
 #   Normaly, this file would only be one line:
-#   Import-Module ModuleManager; Build-Module -Task Test -Verbose
+#   Import-Module PsCraft; Build-Module -Task Test -Verbose
 [cmdletbinding(DefaultParameterSetName = 'task')]
 param(
   [parameter(Position = 0, ParameterSetName = 'task')]
@@ -30,5 +30,5 @@ param(
   [switch]$Help
 )
 
-Import-Module $PSScriptRoot
+Import-Module PsCraft
 Build-Module -Task $Task
