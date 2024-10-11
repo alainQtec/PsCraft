@@ -52,8 +52,8 @@
     Install-Module $ModuleName -Repository LocalPSRepo
     if ($Task -contains 'Import' -and $psake.build_success) {
       [void][PsCraft]::WriteHeading("Import $ModuleName to local scope")
-      Invoke-CommandWithLog { Import-Module $ModuleName }
-      # or: Invoke-CommandWithLog { Import-Module $([IO.Path]::Combine($Project_Path, $ModuleName)) -Verbose }
+      Write-BuildLog -Command "Import-Module $ModuleName"; Import-Module $ModuleName
+      # or: Import-Module $([IO.Path]::Combine($Project_Path, $ModuleName)) -Verbose
     } else {
       Uninstall-Module $ModuleName -ErrorAction Ignore
       Find-InstalledModule $ModulePath | ForEach-Object { $_.Delete() }
