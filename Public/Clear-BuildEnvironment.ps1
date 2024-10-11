@@ -10,9 +10,9 @@
   )
 
   process {
-    [void][ModuleHandler]::WriteHeading("CleanUp: Uninstall the test module, and delete the LocalPSRepo")
+    [void][ModuleManager]::WriteHeading("CleanUp: Uninstall the test module, and delete the LocalPSRepo")
     if (![string]::IsNullOrWhiteSpace($buildId)) {
-      [void][ModuleHandler]::WriteHeading("CleanUp: Remove Environment Variables")
+      [void][ModuleManager]::WriteHeading("CleanUp: Remove Environment Variables")
       $OldEnvNames = [Environment]::GetEnvironmentVariables().Keys | Where-Object { $_ -like "$buildId*" }
       if ($OldEnvNames.Count -gt 0) {
         foreach ($Name in $OldEnvNames) {
@@ -26,11 +26,11 @@
     } else {
       Write-Warning "Invalid RUN_ID! Skipping ...`n"
     }
-    if ([ModuleHandler]::LocalPSRepo.Exists) {
+    if ([ModuleManager]::LocalPSRepo.Exists) {
       Write-BuildLog "Remove 'local' repository"
       if ($null -ne (Get-PSRepository -Name 'LocalPSRepo' -ErrorAction Ignore)) {
         Invoke-Command -ScriptBlock ([ScriptBlock]::Create("Unregister-PSRepository -Name 'LocalPSRepo' -Verbose -ErrorAction Ignore"))
-      }; [ModuleHandler]::LocalPSRepo.FullName | Remove-Item -Force -Recurse -ErrorAction Ignore
+      }; [ModuleManager]::LocalPSRepo.FullName | Remove-Item -Force -Recurse -ErrorAction Ignore
     }
     if ($Force) {
       [Environment]::SetEnvironmentVariable('RUN_ID', $null)

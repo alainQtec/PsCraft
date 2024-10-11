@@ -6,7 +6,7 @@
 #   https://github.com/alainQtec/cliHelper.XConvert/blob/main/build.ps1
 # .NOTES
 #   Normaly, this file would only be one line:
-#   Import-Module ModuleHandler; Build-Module -Task Test -Verbose
+#   Import-Module ModuleManager; Build-Module -Task Test -Verbose
 [cmdletbinding(DefaultParameterSetName = 'task')]
 param(
   [parameter(Position = 0, ParameterSetName = 'task')]

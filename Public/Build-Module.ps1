@@ -1,10 +1,10 @@
 ﻿function Build-Module {
   # .SYNOPSIS
-  #     ModuleHandler buildScript
+  #     ModuleManager buildScript
   # .DESCRIPTION
-  #     A custom Psake buildScript for the module ModuleHandler
+  #     A custom Psake buildScript for the module ModuleManager
   # .LINK
-  #     https://github.com/alainQtec/ModuleHandler/blob/main/public/Build-Module.ps1
+  #     https://github.com/alainQtec/ModuleManager/blob/main/public/Build-Module.ps1
   # .EXAMPLE
   #     Running Build-Module will only "Init, Compile & Import" the module; That's it, no tests.
   #     To run tests Use:
@@ -39,28 +39,28 @@
   Begin {
     #Requires -RunAsAdministrator
     if ($null -ne ${env:=::}) { Throw 'Please Run this script as Administrator' }
+    if ($Help) { return $Builder.WriteHelp() }
     $ModuleName = [Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')
-    $Builder = [ModuleHandler]::New()
+  }
+  Process {
+    $Builder = New-Object -TypeName PsCraft
     if ($PSBoundParameters.ContainsKey('Verbose')) {
       $Builder::Useverbose = $PSBoundParameters['Verbose']
     }
-  }
-  Process {
-    if ($Help) { return $Builder.WriteHelp() }
     [void]$Builder.Invoke()
-    $ModulePath = [ModuleHandler]::PublishtoLocalPsRepo($ModuleName)
+    $ModulePath = [PsCraft]::PublishtoLocalPsRepo($ModuleName)
     Install-Module $ModuleName -Repository LocalPSRepo
     if ($Task -contains 'Import' -and $psake.build_success) {
-      [void][ModuleHandler]::WriteHeading("Import $ModuleName to local scope")
+      [void][PsCraft]::WriteHeading("Import $ModuleName to local scope")
       Invoke-CommandWithLog { Import-Module $ModuleName }
       # or: Invoke-CommandWithLog { Import-Module $([IO.Path]::Combine($Project_Path, $ModuleName)) -Verbose }
     } else {
       Uninstall-Module $ModuleName -ErrorAction Ignore
-      [LocalPsModule]::Find($ModulePath).Path | Remove-Item -Recurse -Force -ErrorAction Ignore
+      Find-InstalledModule $ModulePath | ForEach-Object { $_.Delete() }
     }
   }
   end {
-    [ModuleHandler]::ShowEnvSummary("Build finished")
+    [PsCraft]::ShowEnvSummary("Build finished")
     Clear-BuildEnvironment -Id $env:RUN_ID -Force
     exit ([int](!$psake.build_success))
   }

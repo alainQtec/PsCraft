@@ -1,12 +1,12 @@
 using namespace System.IO
 using module Private/PsCraft.GuiBuilder
 using module Private/PsCraft.CodeSigner
-using module Private/PsCraft.ModuleHandler
+using module Private/PsCraft.ModuleManager
 using namespace System.Collections.Generic
 using namespace System.Management.Automation.Language
 
 #region    Classes
-class PsCraft : ModuleHandler {
+class PsCraft : ModuleManager {
   static [ParseResult] ParseCode($Code) {
     # Parses the given code and returns an object with the AST, Tokens and ParseErrors
     Write-Debug "    ENTER: ConvertToAst $Code"

@@ -14,6 +14,7 @@ EXAMPLES
     from the Private and Public folder, an updated DemoModule.psd1 module manifest with the FunctionsToExport
     correctly populated with all functions from the Public Folder.
 
+    TODO: add updated module dir tree.
     DemoModule
       └─── 1.0.0
           │   DemoModule.psd1
