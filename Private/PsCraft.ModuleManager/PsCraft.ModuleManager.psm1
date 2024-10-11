@@ -16,35 +16,26 @@ enum SaveOptions {
 #region    Classes
 
 # .SYNOPSIS
-#  ModuleManager Class
+# ModuleManager Class
 # .EXAMPLE
-#  $handler = [ModuleManager]::new("MyModule", "C:\Path\To\MyModule.psm1")
-#  if ($handler.TestModulePath()) {
-#     $handler.ImportModule()
-#     $functions = $handler.ListExportedFunctions()
-#     Write-Host "Exported functions: $functions"
+# $handler = [ModuleManager]::new("MyModule", "C:\Path\To\MyModule.psm1")
+# if ($handler.TestModulePath()) {
+#    $handler.ImportModule()
+#    $functions = $handler.ListExportedFunctions()
+#    Write-Host "Exported functions: $functions"
 #  } else {
-#     Write-Host "Module not found at specified path"
+#    Write-Host "Module not found at specified path"
 #  }
 #  TODO: Add more robust example. (This shit can do way much more.)
-function test-cmdl {
-  [CmdletBinding()]
-  param (
-  )
 
-  process {
-    [ModuleManager]::CallerCmdlet = $PSCmdlet
-    return $true
-  }
-}
 class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
   [List[string]]$TaskList
   [List[string]]$RequiredModules
   [ValidateNotNullOrWhiteSpace()][string]$ModuleName
   [ValidateNotNullOrWhiteSpace()][string]$BuildOutputPath # $RootPath/BouldOutput/$ModuleName
-  [validateNotNullOrEmpty()][DirectoryInfo]$RootPath # Module Project root
-  [validateNotNullOrEmpty()][DirectoryInfo]$TestsPath
-  [ValidateNotNullOrEmpty()][version]$Moduleversion
+  [ValidateNotNullOrEmpty()][DirectoryInfo]$RootPath # Module Project root
+  [ValidateNotNullOrEmpty()][DirectoryInfo]$TestsPath
+  [ValidateNotNullOrEmpty()][version]$ModuleVersion
   [ValidateNotNullOrEmpty()][FileInfo]$dataFile # ..strings.psd1
   [ValidateNotNullOrEmpty()][FileInfo]$buildFile
   static [DirectoryInfo]$LocalPSRepo
@@ -53,9 +44,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
   static [bool]$Useverbose
 
   ModuleManager() {}
-  ModuleManager([string]$RootPath) {
-    [void][ModuleManager]::_Create($RootPath, $this)
-  }
+  ModuleManager([string]$RootPath) { [void][ModuleManager]::_Create($RootPath, $this) }
   static [ModuleManager] Create() { return [ModuleManager]::_Create($null, $null) }
   static [ModuleManager] Create([string]$RootPath) { return [ModuleManager]::_Create($RootPath, $null) }
 
@@ -76,7 +65,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     [void][ModuleManager]::ShowEnvSummary("Preparing build environment")
     $this.setBuildVariables()
     [Console]::WriteLine()
-    Invoke-CommandWithLog {
+    $sc = {
       $script:DefaultParameterValues = @{
         '*-Module:Verbose'           = $false
         'Import-Module:ErrorAction'  = 'Stop'
@@ -87,6 +76,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
         'Install-Module:Verbose'     = $false
       }
     }
+    Write-BuildLog -Command ($sc.ToString() -join "`n"); $sc.Invoke()
     [void][ModuleManager]::WriteHeading("Prepare package feeds")
     [Console]::WriteLine()
     if ($null -eq (Get-PSRepository -Name PSGallery -ErrorAction Ignore)) {
@@ -94,14 +84,14 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
       Register-PSRepository -Default -InstallationPolicy Trusted
     }
     if ((Get-PSRepository -Name PSGallery).InstallationPolicy -ne 'Trusted') {
-      Invoke-CommandWithLog { Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Verbose:$false }
+      Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Verbose:$false
     }
     # if ((Get-Command dotnet -ErrorAction Ignore) -and ([bool](Get-Variable -Name IsWindows -ErrorAction Ignore) -and !$(Get-Variable IsWindows -ValueOnly))) {
     #     dotnet dev-certs https --trust
     # }
-    Invoke-CommandWithLog { Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false }
+    Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false
     if (!(Get-PackageProvider -Name Nuget)) {
-      Invoke-CommandWithLog { Install-PackageProvider -Name NuGet -Force | Out-Null }
+      Install-PackageProvider -Name NuGet -Force | Out-Null
     }
     $null = Import-PackageProvider -Name NuGet -Force
     foreach ($Name in @('PackageManagement', 'PowerShellGet')) {
@@ -508,13 +498,14 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     $BuildOutput = [Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildOutput')
     $this.ModulePath = [Path]::Combine($BuildOutput, $ModuleName, $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildNumber')))
     [void][ModuleManager]::WriteHeading("Publish to Local PsRepository")
-    $dependencies = [LocalPsModule]::ReadPsModuleDataFile([Path]::Combine($this.ModulePath, "$([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')).psd1"), "RequiredModules")
+    $dependencies = [ModuleManager]::ReadPsModuleDataFile([Path]::Combine($this.ModulePath, "$([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')).psd1"), "RequiredModules")
     foreach ($item in $dependencies) {
       $md = Get-Module $item -Verbose:$false; $mdPath = $md.Path | Split-Path
       Write-Verbose "Publish RequiredModule $item ..."
       Publish-Module -Path $mdPath -Repository LocalPSRepo -Verbose:$false
     }
-    Invoke-CommandWithLog { Publish-Module -Path $this.ModulePath -Repository LocalPSRepo } -Verbose:$false
+    Write-BuildLog -Command "Publish-Module -Path $($this.ModulePath) -Repository LocalPSRepo  "
+    Publish-Module -Path $this.ModulePath -Repository LocalPSRepo
     return $this.ModulePath
   }
   static [string] CreateLocalRepository() {
@@ -567,31 +558,6 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
         throw "Failed to match formatting requirements"
       }
     }
-  }
-  static [IO.FileInfo] InstallPsGalleryModule([string]$moduleName) {
-    return [ModuleManager]::InstallPsGalleryModule($moduleName, 'latest', $false)
-  }
-  static [IO.FileInfo] InstallPsGalleryModule([string]$moduleName, [string]$Version, [bool]$UpdateOnly) {
-    # .SYNOPSIS
-    #  This method is like install-Module but it installs a PowerShell module no matter what.
-    # .DESCRIPTION
-    #  Even on systems that seem to not have a broken PowerShellGet.
-    $Module_Path = ''; $IsValidversion = ($Version -as 'version') -is [version] -or $Version -eq 'latest'
-    if (!$IsValidversion) { throw [System.ArgumentException]::New('Please Provide a valid version string') }
-    $IsValidName = $moduleName -match '^[a-zA-Z0-9_.-]+$'
-    if (!$IsValidName) { throw [System.ArgumentException]::New('Please Provide a valid module name') }
-    # Try Using normal Installation
-    try {
-      if ($UpdateOnly) {
-        [void][ModuleManager]::UpdateModule($moduleName, $Version)
-      } else {
-        [void][ModuleManager]::InstallModule($moduleName, $Version)
-      }
-      $Module_Path = ([LocalPsModule]::Find($moduleName)).Psd1 | Split-Path -ErrorAction Stop
-    } catch {
-      $Module_Path = [ModuleManager]::ManuallyInstallModule($moduleName, $Version)
-    }
-    return $Module_Path
   }
   static [string] GetInstallPath([string]$Name, [string]$ReqVersion) {
     $p = [DirectoryInfo][IO.Path]::Combine(
@@ -735,6 +701,24 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     $_res | Write-Host
     return $_res
   }
+  static [hashtable[]] FindHashKeyValue($PropertyName, $Ast) {
+    return [ModuleManager]::FindHashKeyValue($PropertyName, $Ast, @())
+  }
+  static [hashtable[]] FindHashKeyValue($PropertyName, $Ast, [string[]]$CurrentPath) {
+    if ($PropertyName -eq ($CurrentPath -Join '.') -or $PropertyName -eq $CurrentPath[-1]) {
+      return $Ast | Add-Member NoteProperty HashKeyPath ($CurrentPath -join '.') -PassThru -Force | Add-Member NoteProperty HashKeyName ($CurrentPath[-1]) -PassThru -Force
+    }; $r = @()
+    if ($Ast.PipelineElements.Expression -is [System.Management.Automation.Language.HashtableAst]) {
+      $KeyValue = $Ast.PipelineElements.Expression
+      foreach ($KV in $KeyValue.KeyValuePairs) {
+        $result = [ModuleManager]::FindHashKeyValue($PropertyName, $KV.Item2, @($CurrentPath + $KV.Item1.Value))
+        if ($null -ne $result) {
+          $r += $result
+        }
+      }
+    }
+    return $r
+  }
   static [string] GetHostOs() {
     #TODO: refactor so that it returns one of these: [Enum]::GetNames([System.PlatformID])
     return $(if ($(Get-Variable PSVersionTable -Value).PSVersion.Major -le 5 -or $(Get-Variable IsWindows -Value)) { "Windows" }elseif ($(Get-Variable IsLinux -Value)) { "Linux" }elseif ($(Get-Variable IsMacOS -Value)) { "macOS" }else { "UNKNOWN" });
@@ -834,9 +818,143 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
       return $o.Value
     }; return $b
   }
+  static [LocalPsModule] FindLocalPsModule([string]$Name) {
+    if ($Name.Contains([string][Path]::DirectorySeparatorChar)) {
+      $rName = [ModuleManager]::GetResolvedPath($Name)
+      $bName = [Path]::GetDirectoryName($rName)
+      if ([Directory]::Exists($rName)) {
+        return [ModuleManager]::FindLocalPsModule($bName, [Directory]::GetParent($rName))
+      }
+    }
+    return [ModuleManager]::FindLocalPsModule($Name, "", $null)
+  }
+  static [LocalPsModule] FindLocalPsModule([string]$Name, [string]$scope) {
+    return [ModuleManager]::FindLocalPsModule($Name, $scope, $null)
+  }
+  static [LocalPsModule] FindLocalPsModule([string]$Name, [version]$version) {
+    return [ModuleManager]::FindLocalPsModule($Name, "", $version)
+  }
+  static [LocalPsModule] FindLocalPsModule([string]$Name, [DirectoryInfo]$ModuleBase) {
+    [ValidateNotNullOrWhiteSpace()][string]$Name = $Name
+    [ValidateNotNullOrEmpty()][DirectoryInfo]$ModuleBase = $ModuleBase
+    $result = [LocalPsModule]::new(); $result.Scope = 'LocalMachine'
+    $ModulePsd1 = ($ModuleBase.GetFiles().Where({ $_.Name -like "$Name*" -and $_.Extension -eq '.psd1' }))[0]
+    if ($null -eq $ModulePsd1) { return $result }
+    $result.Info = [ModuleManager]::ReadPsModuleDataFile($ModulePsd1.FullName)
+    $result.Name = $ModulePsd1.BaseName
+    $result.Psd1 = $ModulePsd1
+    $result.Path = if ($result.Psd1.Directory.Name -as [version] -is [version]) { $result.Psd1.Directory.Parent } else { $result.Psd1.Directory }
+    $result.Exists = $ModulePsd1.Exists
+    $result.Version = $result.Info.ModuleVersion -as [version]
+    $result.IsReadOnly = $ModulePsd1.IsReadOnly
+    return $result
+  }
+  static [LocalPsModule] FindLocalPsModule([string]$Name, [string]$scope, [version]$version) {
+    $Module = $null; [ValidateNotNullOrWhiteSpace()][string]$Name = $Name
+    $PsModule_Paths = $([ModuleManager]::GetModulePaths($(if ([string]::IsNullOrWhiteSpace($scope)) { "LocalMachine" }else { $scope })).ForEach({ [DirectoryInfo]::New("$_") }).Where({ $_.Exists })).GetDirectories().Where({ $_.Name -eq $Name });
+    if ($PsModule_Paths.count -gt 0) {
+      $Get_versionDir = [scriptblock]::Create('param([IO.DirectoryInfo[]]$direcrory) return ($direcrory | ForEach-Object { $_.GetDirectories() | Where-Object { $_.Name -as [version] -is [version] } })')
+      $has_versionDir = $Get_versionDir.Invoke($PsModule_Paths).count -gt 0
+      $ModulePsdFiles = $PsModule_Paths.ForEach({
+          if ($has_versionDir) {
+            [string]$MaxVersion = ($Get_versionDir.Invoke([IO.DirectoryInfo]::New("$_")) | Select-Object @{l = 'version'; e = { $_.BaseName -as [version] } } | Measure-Object -Property version -Maximum).Maximum
+            [IO.FileInfo]::New([IO.Path]::Combine("$_", $MaxVersion, $_.BaseName + '.psd1'))
+          } else {
+            [IO.FileInfo]::New([IO.Path]::Combine("$_", $_.BaseName + '.psd1'))
+          }
+        }
+      ).Where({ $_.Exists })
+      $Req_ModulePsd1 = $(if ($null -eq $version) {
+          $ModulePsdFiles | Sort-Object -Property version -Descending | Select-Object -First 1
+        } else {
+          $ModulePsdFiles | Where-Object { $([ModuleManager]::GetModuleVersion($_.FullName)) -eq $version }
+        }
+      )
+      $Module = [ModuleManager]::FindLocalPsModule($Req_ModulePsd1.Name, $Req_ModulePsd1.Directory)
+    }
+    return $Module
+  }
+  static [string[]] GetModulePaths() {
+    return [ModuleManager]::GetModulePaths($null)
+  }
+  static [string[]] GetModulePaths([string]$scope) {
+    [string[]]$_Module_Paths = [Environment]::GetEnvironmentVariable('PSModulePath').Split([IO.Path]::PathSeparator)
+    if ([string]::IsNullOrWhiteSpace($scope)) { return $_Module_Paths }
+    [ValidateSet('LocalMachine', 'CurrentUser')][string]$scope = $scope
+    if (!(Get-Variable -Name IsWindows -ErrorAction Ignore) -or $(Get-Variable IsWindows -ValueOnly)) {
+      $psv = Get-Variable PSVersionTable -ValueOnly
+      $allUsers_path = Join-Path -Path $env:ProgramFiles -ChildPath $(if ($psv.ContainsKey('PSEdition') -and $psv.PSEdition -eq 'Core') { 'PowerShell' } else { 'WindowsPowerShell' })
+      if ($Scope -eq 'CurrentUser') { $_Module_Paths = $_Module_Paths.Where({ $_ -notlike "*$($allUsers_path | Split-Path)*" -and $_ -notlike "*$env:SystemRoot*" }) }
+    } else {
+      $allUsers_path = Split-Path -Path ([Platform]::SelectProductNameForDirectory('SHARED_MODULES')) -Parent
+      if ($Scope -eq 'CurrentUser') { $_Module_Paths = $_Module_Paths.Where({ $_ -notlike "*$($allUsers_path | Split-Path)*" -and $_ -notlike "*/var/lib/*" }) }
+    }
+    return $_Module_Paths
+  }
+  static [PSObject] ReadPsModuleDataFile([string]$Path) {
+    [ValidateNotNullOrWhiteSpace()][string]$Path = $Path
+    return [ModuleManager]::ReadPsModuleDataFile($Path, $null)
+  }
+  static [psobject] ReadPsModuleDataFile([string]$Path, [string]$PropertyName) {
+    if ([string]::IsNullOrWhiteSpace($PropertyName)) {
+      $null = Get-Item -Path $Path -ErrorAction Stop
+      $data = New-Object PSObject; $text = [IO.File]::ReadAllText("$Path")
+      $data = [scriptblock]::Create("$text").Invoke()
+      return $data
+    }
+    $Tokens = $Null; $ParseErrors = $Null
+    # search the Manifest root properties, and also the nested hashtable properties.
+    if ([IO.Path]::GetExtension($_) -ne ".psd1") { throw "Path must point to a .psd1 file" }
+    if (!(Test-Path $Path)) {
+      $Error_params = @{
+        ExceptionName    = "ItemNotFoundException"
+        ExceptionMessage = "Can't find file $Path"
+        ErrorId          = "PathNotFound,Metadata\Import-Metadata"
+        Caller           = [ModuleManager]::CallerCmdlet
+        ErrorCategory    = "ObjectNotFound"
+      }
+      Write-TerminatingError @Error_params
+    }
+    $AST = [Parser]::ParseFile($Path, [ref]$Tokens, [ref]$ParseErrors)
+    $KeyValue = $Ast.EndBlock.Statements
+    $KeyValue = @([ModuleManager]::FindHashKeyValue($PropertyName, $KeyValue))
+    if ($KeyValue.Count -eq 0) {
+      $Error_params = @{
+        ExceptionName    = "ItemNotFoundException"
+        ExceptionMessage = "Can't find '$PropertyName' in $Path"
+        ErrorId          = "PropertyNotFound,Metadata\Get-Metadata"
+        Caller           = [ModuleManager]::CallerCmdlet
+        ErrorCategory    = "ObjectNotFound"
+      }
+      Write-TerminatingError @Error_params
+    }
+    if ($KeyValue.Count -gt 1) {
+      $SingleKey = @($KeyValue | Where-Object { $_.HashKeyPath -eq $PropertyName })
+
+      if ($SingleKey.Count -gt 1) {
+        $Error_params = @{
+          ExceptionName    = "System.Reflection.AmbiguousMatchException"
+          ExceptionMessage = "Found more than one '$PropertyName' in $Path. Please specify a dotted path instead. Matching paths include: '{0}'" -f ($KeyValue.HashKeyPath -join "', '")
+          ErrorId          = "AmbiguousMatch,Metadata\Get-Metadata"
+          Caller           = [ModuleManager]::CallerCmdlet
+          ErrorCategory    = "InvalidArgument"
+        }
+        Write-TerminatingError @Error_params
+      } else {
+        $KeyValue = $SingleKey
+      }
+    }
+    $KeyValue = $KeyValue[0]
+    # $KeyValue.SafeGetValue()
+    return $KeyValue
+  }
+  static [version] GetModuleVersion([string]$Psd1Path) {
+    $data = [ModuleManager]::ReadPsModuleDataFile($Psd1Path)
+    $_ver = $data.ModuleVersion; if ($null -eq $_ver) { $_ver = [version][IO.FileInfo]::New($Psd1Path).Directory.Name }
+    return $_ver
+  }
   static [bool] IsAdmin() {
-    $hostOs = [ModuleManager]::GetHostOs()
-    $isAdmn = switch ($hostOS) {
+    $isAdmn = switch ([ModuleManager]::GetHostOs()) {
       "Windows" { (New-Object Security.Principal.WindowsPrincipal $([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator); break }
       "Linux" { (& id -u) -eq 0; break }
       "MacOsx" { Write-Warning "MacOsx !! idk how to solve this one!"; $false; break }
@@ -875,64 +993,8 @@ class LocalPsModule {
   static [LocalPsModule] Create() {
     return [LocalPsModule]::new()
   }
-  static [LocalPsModule] Find([string]$Name) {
-    if ($Name.Contains([string][Path]::DirectorySeparatorChar)) {
-      $rName = [ModuleManager]::GetResolvedPath($Name)
-      $bName = [Path]::GetDirectoryName($rName)
-      if ([Directory]::Exists($rName)) {
-        return[LocalPsModule]::Find($bName, [Directory]::GetParent($rName))
-      }
-    }
-    return [LocalPsModule]::Find($Name, "", $null)
-  }
-  static [LocalPsModule] Find([string]$Name, [string]$scope) {
-    return [LocalPsModule]::Find($Name, $scope, $null)
-  }
-  static [LocalPsModule] Find([string]$Name, [version]$version) {
-    return [LocalPsModule]::Find($Name, "", $version)
-  }
-  static [LocalPsModule] Find([string]$Name, [DirectoryInfo]$ModuleBase) {
-    [ValidateNotNullOrWhiteSpace()][string]$Name = $Name
-    [ValidateNotNullOrEmpty()][DirectoryInfo]$ModuleBase = $ModuleBase
-    $result = [LocalPsModule]::new(); $result.Scope = 'LocalMachine'
-    $ModulePsd1 = ($ModuleBase.GetFiles().Where({ $_.Name -like "$Name*" -and $_.Extension -eq '.psd1' }))[0]
-    if ($null -eq $ModulePsd1) { return $result }
-    $result.Info = [LocalPsModule]::ReadPsModuleDataFile($ModulePsd1.FullName)
-    $result.Name = $ModulePsd1.BaseName
-    $result.Psd1 = $ModulePsd1
-    $result.Path = if ($result.Psd1.Directory.Name -as [version] -is [version]) { $result.Psd1.Directory.Parent } else { $result.Psd1.Directory }
-    $result.Exists = $ModulePsd1.Exists
-    $result.Version = $result.Info.ModuleVersion -as [version]
-    $result.IsReadOnly = $ModulePsd1.IsReadOnly
-    return $result
-  }
-  static [LocalPsModule] Find([string]$Name, [string]$scope, [version]$version) {
-    $Module = $null; [ValidateNotNullOrWhiteSpace()][string]$Name = $Name
-    $PsModule_Paths = $([LocalPsModule]::Get_Module_Paths($(if ([string]::IsNullOrWhiteSpace($scope)) { "LocalMachine" }else { $scope })).ForEach({ [DirectoryInfo]::New("$_") }).Where({ $_.Exists })).GetDirectories().Where({ $_.Name -eq $Name });
-    if ($PsModule_Paths.count -gt 0) {
-      $Get_versionDir = [scriptblock]::Create('param([IO.DirectoryInfo[]]$direcrory) return ($direcrory | ForEach-Object { $_.GetDirectories() | Where-Object { $_.Name -as [version] -is [version] } })')
-      $has_versionDir = $Get_versionDir.Invoke($PsModule_Paths).count -gt 0
-      $ModulePsdFiles = $PsModule_Paths.ForEach({
-          if ($has_versionDir) {
-            [string]$MaxVersion = ($Get_versionDir.Invoke([IO.DirectoryInfo]::New("$_")) | Select-Object @{l = 'version'; e = { $_.BaseName -as [version] } } | Measure-Object -Property version -Maximum).Maximum
-            [IO.FileInfo]::New([IO.Path]::Combine("$_", $MaxVersion, $_.BaseName + '.psd1'))
-          } else {
-            [IO.FileInfo]::New([IO.Path]::Combine("$_", $_.BaseName + '.psd1'))
-          }
-        }
-      ).Where({ $_.Exists })
-      $Req_ModulePsd1 = $(if ($null -eq $version) {
-          $ModulePsdFiles | Sort-Object -Property version -Descending | Select-Object -First 1
-        } else {
-          $ModulePsdFiles | Where-Object { $([LocalPsModule]::Get_Module_Version($_.FullName)) -eq $version }
-        }
-      )
-      $Module = [LocalPsModule]::Find($Req_ModulePsd1.Name, $Req_ModulePsd1.Directory)
-    }
-    return $Module
-  }
   static hidden [LocalPsModule] _Create([string]$Name, [string]$scope, [version]$version, [ref]$o) {
-    $m = [LocalPsModule]::Find($Name, $scope, $version);
+    $m = [ModuleManager]::FindLocalPsModule($Name, $scope, $version);
     if ($null -ne $o) {
       $o.value.GetType().GetProperties().ForEach({
           $v = $m.$($_.Name)
@@ -943,101 +1005,6 @@ class LocalPsModule {
       )
       return $o.Value
     }; return $m
-  }
-  static hidden [string[]] Get_Module_Paths() {
-    return [LocalPsModule]::Get_Module_Paths($null)
-  }
-  static hidden [string[]] Get_Module_Paths([string]$scope) {
-    [string[]]$_Module_Paths = [System.Environment]::GetEnvironmentVariable('PSModulePath').Split([IO.Path]::PathSeparator)
-    if ([string]::IsNullOrWhiteSpace($scope)) { return $_Module_Paths }
-    [ValidateSet('LocalMachine', 'CurrentUser')][string]$scope = $scope
-    if (!(Get-Variable -Name IsWindows -ErrorAction Ignore) -or $(Get-Variable IsWindows -ValueOnly)) {
-      $psv = Get-Variable PSVersionTable -ValueOnly
-      $allUsers_path = Join-Path -Path $env:ProgramFiles -ChildPath $(if ($psv.ContainsKey('PSEdition') -and $psv.PSEdition -eq 'Core') { 'PowerShell' } else { 'WindowsPowerShell' })
-      if ($Scope -eq 'CurrentUser') { $_Module_Paths = $_Module_Paths.Where({ $_ -notlike "*$($allUsers_path | Split-Path)*" -and $_ -notlike "*$env:SystemRoot*" }) }
-    } else {
-      $allUsers_path = Split-Path -Path ([Platform]::SelectProductNameForDirectory('SHARED_MODULES')) -Parent
-      if ($Scope -eq 'CurrentUser') { $_Module_Paths = $_Module_Paths.Where({ $_ -notlike "*$($allUsers_path | Split-Path)*" -and $_ -notlike "*/var/lib/*" }) }
-    }
-    return $_Module_Paths
-  }
-  static [PSObject] ReadPsModuleDataFile([string]$Path) {
-    [ValidateNotNullOrWhiteSpace()][string]$Path = $Path
-    return [LocalPsModule]::ReadPsModuleDataFile($Path, $null)
-  }
-  static [psobject] ReadPsModuleDataFile([string]$Path, [string]$PropertyName) {
-    if ([string]::IsNullOrWhiteSpace($PropertyName)) {
-      $null = Get-Item -Path $Path -ErrorAction Stop
-      $data = New-Object PSObject; $text = [IO.File]::ReadAllText("$Path")
-      $data = [scriptblock]::Create("$text").Invoke()
-      return $data
-    }
-    $Tokens = $Null; $ParseErrors = $Null
-    # search the Manifest root properties, and also the nested hashtable properties.
-    if ([IO.Path]::GetExtension($_) -ne ".psd1") { throw "Path must point to a .psd1 file" }
-    if (!(Test-Path $Path)) {
-      $Error_params = @{
-        ExceptionName    = "ItemNotFoundException"
-        ExceptionMessage = "Can't find file $Path"
-        ErrorId          = "PathNotFound,Metadata\Import-Metadata"
-        Caller           = [ModuleManager]::CallerCmdlet
-        ErrorCategory    = "ObjectNotFound"
-      }
-      Write-TerminatingError @Error_params
-    }
-    $AST = [Parser]::ParseFile($Path, [ref]$Tokens, [ref]$ParseErrors )
-
-    $KeyValue = $Ast.EndBlock.Statements
-    $KeyValue = @(Find-HashKeyValue $PropertyName $KeyValue)
-    if ($KeyValue.Count -eq 0) {
-      $Error_params = @{
-        ExceptionName    = "ItemNotFoundException"
-        ExceptionMessage = "Can't find '$PropertyName' in $Path"
-        ErrorId          = "PropertyNotFound,Metadata\Get-Metadata"
-        Caller           = [ModuleManager]::CallerCmdlet
-        ErrorCategory    = "ObjectNotFound"
-      }
-      Write-TerminatingError @Error_params
-    }
-    if ($KeyValue.Count -gt 1) {
-      $SingleKey = @($KeyValue | Where-Object { $_.HashKeyPath -eq $PropertyName })
-
-      if ($SingleKey.Count -gt 1) {
-        $Error_params = @{
-          ExceptionName    = "System.Reflection.AmbiguousMatchException"
-          ExceptionMessage = "Found more than one '$PropertyName' in $Path. Please specify a dotted path instead. Matching paths include: '{0}'" -f ($KeyValue.HashKeyPath -join "', '")
-          ErrorId          = "AmbiguousMatch,Metadata\Get-Metadata"
-          Caller           = [ModuleManager]::CallerCmdlet
-          ErrorCategory    = "InvalidArgument"
-        }
-        Write-TerminatingError @Error_params
-      } else {
-        $KeyValue = $SingleKey
-      }
-    }
-    $KeyValue = $KeyValue[0]
-    # $KeyValue.SafeGetValue()
-    return $KeyValue
-  }
-  static hidden [version] Get_Module_Version([string]$Psd1Path) {
-    $data = [LocalPsModule]::ReadPsModuleDataFile($Psd1Path)
-    $_ver = $data.ModuleVersion; if ($null -eq $_ver) { $_ver = [version][IO.FileInfo]::New($Psd1Path).Directory.Name }
-    return $_ver
-  }
-  static [LocalPsModule[]] Search([string]$Name) {
-    [ValidateNotNullOrWhiteSpace()][string]$Name = $Name
-    $res = @(); $AvailModls = Get-Module -ListAvailable -Name $Name -Verbose:$false -ErrorAction Ignore
-    if ($null -ne $AvailModls) {
-      foreach ($m in ($AvailModls.ModuleBase -as [string[]])) {
-        if ($null -eq $m) {
-          $res += [LocalPsModule]::Find($Name, 'LocalMachine', $null); continue
-        }
-        if ([Directory]::Exists($m)) {
-          $res += [LocalPsModule]::Find($Name, [DirectoryInfo]::New($m))
-        }
-      }
-    }
-    return $res
   }
   [void] Delete() {
     Remove-Item $this.Path -Recurse -Force -ErrorAction Ignore
@@ -1521,172 +1488,7 @@ class AliasVisitor : System.Management.Automation.Language.AstVisitor {
 
 
 #region    functions
-function Find-HashKeyValue {
-  [CmdletBinding()]
-  param(
-    $SearchPath,
-    $Ast,
-    [string[]]
-    $CurrentPath = @()
-  )
-  # Write-Debug "Find-HashKeyValue: $SearchPath -eq $($CurrentPath -Join '.')"
-  if ($SearchPath -eq ($CurrentPath -Join '.') -or $SearchPath -eq $CurrentPath[-1]) {
-    return $Ast |
-      Add-Member NoteProperty HashKeyPath ($CurrentPath -join '.') -PassThru -Force | Add-Member NoteProperty HashKeyName ($CurrentPath[-1]) -PassThru -Force
-  }
-  if ($Ast.PipelineElements.Expression -is [System.Management.Automation.Language.HashtableAst] ) {
-    $KeyValue = $Ast.PipelineElements.Expression
-    foreach ($KV in $KeyValue.KeyValuePairs) {
-      $result = Find-HashKeyValue $SearchPath -Ast $KV.Item2 -CurrentPath ($CurrentPath + $KV.Item1.Value)
-      if ($null -ne $result) {
-        $result
-      }
-    }
-  }
-}
 
-function Get-LatestModuleVersion {
-  [CmdletBinding()][OutputType([version])]
-  param (
-    [Parameter(Position = 0, Mandatory = $true)]
-    [string]$Name,
-
-    [Parameter(Position = 1, Mandatory = $false)]
-    [ValidateSet('LocalMachine', 'PsGallery')]
-    [string]$Source = 'PsGallery'
-  )
-
-  begin {
-    $latest_Version = [version]::New()
-  }
-  process {
-    if ($Source -eq 'LocalMachine') {
-      $_Local_Module = Find-InstalledModule $Name
-      if ($null -ne $_Local_Module) {
-        if ((Test-Path -Path $_Local_Module.Psd1 -PathType Leaf -ErrorAction Ignore)) {
-          $latest_Version = $_Local_Module.Version
-        }
-      }
-    } else {
-      $url = "https://www.powershellgallery.com/packages/$Name/?dummy=$(Get-Random)"; $request = [System.Net.WebRequest]::Create($url)
-      # U can also use api: [version]$Version = (Invoke-RestMethod -Uri "https://www.powershellgallery.com/api/v2/Packages?`$filter=Id eq '$PackageName' and IsLatestVersion" -Method Get -Verbose:$false).properties.Version
-      $latest_Version = [version]::new(); $request.AllowAutoRedirect = $false
-      try {
-        $response = $request.GetResponse()
-        $latest_Version = $response.GetResponseHeader("Location").Split("/")[-1] -as [Version]
-        $response.Close(); $response.Dispose()
-      } catch [System.Net.WebException], [System.Net.Http.HttpRequestException], [System.Net.Sockets.SocketException] {
-        $Error_params = @{
-          ExceptionName    = $_.Exception.GetType().FullName
-          ExceptionMessage = "No Internet! " + $_.Exception.Message
-          ErrorId          = 'WebException'
-          Caller           = [ModuleManager]::CallerCmdlet
-          ErrorCategory    = 'ConnectionError'
-        }
-        Write-TerminatingError @Error_params
-      } catch {
-        $Error_params = @{
-          ExceptionName    = $_.Exception.GetType().FullName
-          ExceptionMessage = "PackageName '$PackageName' was Not Found. " + $_.Exception.Message
-          ErrorId          = 'UnexpectedError'
-          Caller           = [ModuleManager]::CallerCmdlet
-          ErrorCategory    = 'OperationStopped'
-        }
-        Write-TerminatingError @Error_params
-      }
-    }
-  }
-  end {
-    return $latest_Version
-  }
-}
-
-function Invoke-CommandWithLog {
-  [CmdletBinding()]
-  Param (
-    [parameter(Mandatory, Position = 0)]
-    [ScriptBlock]$ScriptBlock
-  )
-  Write-BuildLog -Command ($ScriptBlock.ToString() -join "`n"); $ScriptBlock.Invoke()
-}
-function Write-CommandLog {
-  [CmdletBinding()]
-  param(
-    [parameter(Mandatory, Position = 0, ValueFromRemainingArguments, ValueFromPipeline)]
-    [System.Object]$Message,
-
-    [parameter()]
-    [Alias('c', 'Command')]
-    [Switch]$Cmd,
-
-    [parameter()]
-    [Alias('w')]
-    [Switch]$Warning,
-
-    [parameter()]
-    [Alias('s', 'e')]
-    [Switch]$Severe,
-
-    [parameter()]
-    [Alias('x', 'nd', 'n')]
-    [Switch]$Clean
-  )
-  Begin {
-    if ($PSBoundParameters.ContainsKey('Debug') -and $PSBoundParameters['Debug'] -eq $true) {
-      $fg = 'Yellow'
-      $lvl = '##[debug]   '
-    } elseif ($PSBoundParameters.ContainsKey('Verbose') -and $PSBoundParameters['Verbose'] -eq $true) {
-      $fg = if ($Host.UI.RawUI.ForegroundColor -eq 'Gray') {
-        'White'
-      } else {
-        'Gray'
-      }
-      $lvl = '##[Verbose] '
-    } elseif ($Severe) {
-      $fg = 'Red'
-      $lvl = '##[Error]   '
-    } elseif ($Warning) {
-      $fg = 'Yellow'
-      $lvl = '##[Warning] '
-    } elseif ($Cmd) {
-      $fg = 'Magenta'
-      $lvl = '##[Command] '
-    } else {
-      $fg = if ($Host.UI.RawUI.ForegroundColor -eq 'Gray') {
-        'White'
-      } else {
-        'Gray'
-      }
-      $lvl = '##[Info]    '
-    }
-  }
-  Process {
-    $fmtMsg = if ($Clean) {
-      $Message -split "[\r\n]" | Where-Object { $_ } | ForEach-Object {
-        $lvl + $_
-      }
-    } else {
-      $date = "$([ModuleManager]::GetElapsed()) "
-      if ($Cmd) {
-        $i = 0
-        $Message -split "[\r\n]" | Where-Object { $_ } | ForEach-Object {
-          $tag = if ($i -eq 0) {
-            'PS > '
-          } else {
-            '  >> '
-          }
-          $lvl + $date + $tag + $_
-          $i++
-        }
-      } else {
-        $Message -split "[\r\n]" | Where-Object { $_ } | ForEach-Object {
-          $lvl + $date + $_
-        }
-      }
-    }
-    Write-Host -ForegroundColor $fg $($fmtMsg -join "`n")
-  }
-}
 function New-Directory {
   [CmdletBinding(SupportsShouldProcess = $true, DefaultParameterSetName = 'str')]
   param (
