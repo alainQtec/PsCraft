@@ -387,5 +387,5 @@ FodyWeavers.xsd
 .env
 BuildOutput/
 LocalPSRepo/
-Private/ModuleHandler/
+Private/ModuleManager/
 Tests/results.xml
