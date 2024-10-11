@@ -1,10 +1,10 @@
 ﻿function Build-Module {
   # .SYNOPSIS
-  #     ModuleManager buildScript
+  #     Module buildScript
   # .DESCRIPTION
-  #     A custom Psake buildScript for the module ModuleManager
+  #     A custom Psake buildScript for any module that was created by PsCraft.
   # .LINK
-  #     https://github.com/alainQtec/ModuleManager/blob/main/public/Build-Module.ps1
+  #     https://github.com/alainQtec/PsCraft/blob/main/public/Build-Module.ps1
   # .EXAMPLE
   #     Running Build-Module will only "Init, Compile & Import" the module; That's it, no tests.
   #     To run tests Use:
