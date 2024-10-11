@@ -3,10 +3,51 @@ using module Private/PsCraft.GuiBuilder
 using module Private/PsCraft.CodeSigner
 using module Private/PsCraft.ModuleManager
 using namespace System.Collections.Generic
+using namespace system.management.automation
 using namespace System.Management.Automation.Language
 
 #region    Classes
 class PsCraft : ModuleManager {
+  static [IO.FileInfo] InstallPsGalleryModule([string]$moduleName) {
+    return [PsCraft]::InstallPsGalleryModule($moduleName, 'latest', $false)
+  }
+  static [IO.FileInfo] InstallPsGalleryModule([string]$moduleName, [string]$Version, [bool]$UpdateOnly) {
+    # .SYNOPSIS
+    #  This method is like install-Module but it installs a PowerShell module no matter what.
+    # .DESCRIPTION
+    #  Even on systems that seem to not have a broken PowerShellGet.
+    $Module_Path = ''; $IsValidversion = ($Version -as 'version') -is [version] -or $Version -eq 'latest'
+    if (!$IsValidversion) { throw [System.ArgumentException]::New('Please Provide a valid version string') }
+    $IsValidName = $moduleName -match '^[a-zA-Z0-9_.-]+$'
+    if (!$IsValidName) { throw [System.ArgumentException]::New('Please Provide a valid module name') }
+    # Try Using normal Installation
+    try {
+      if ($UpdateOnly) {
+        [void][PsCraft]::UpdateModule($moduleName, $Version)
+      } else {
+        [void][PsCraft]::InstallModule($moduleName, $Version)
+      }
+      $Module_Path = ([PsCraft]::FindLocalPsModule($moduleName)).Psd1 | Split-Path -ErrorAction Stop
+    } catch {
+      $Module_Path = [PsCraft]::ManuallyInstallModule($moduleName, $Version)
+    }
+    return $Module_Path
+  }
+  static [LocalPsModule[]] Search([string]$Name) {
+    [ValidateNotNullOrWhiteSpace()][string]$Name = $Name
+    $res = @(); $AvailModls = Get-Module -ListAvailable -Name $Name -Verbose:$false -ErrorAction Ignore
+    if ($null -ne $AvailModls) {
+      foreach ($m in ($AvailModls.ModuleBase -as [string[]])) {
+        if ($null -eq $m) {
+          $res += [PsCraft]::FindLocalPsModule($Name, 'LocalMachine', $null); continue
+        }
+        if ([Directory]::Exists($m)) {
+          $res += [PsCraft]::FindLocalPsModule($Name, [DirectoryInfo]::New($m))
+        }
+      }
+    }
+    return $res
+  }
   static [ParseResult] ParseCode($Code) {
     # Parses the given code and returns an object with the AST, Tokens and ParseErrors
     Write-Debug "    ENTER: ConvertToAst $Code"
@@ -34,6 +75,7 @@ class PsCraft : ModuleManager {
     return $Visitor.Aliases
   }
 }
+
 #endregion Classes
 
 $CurrentCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture.Name
