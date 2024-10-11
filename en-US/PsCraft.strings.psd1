@@ -134,7 +134,6 @@
             # Write tests for another feature.
           }
         }
-
         # TODO: Add more contexts and tests to cover various features and functionalities.
       }
 
@@ -162,7 +161,6 @@
         ModuleVersion = [version]::new(0, 1, 0)
         ReleaseNotes  = '<Release_Notes_Template>'
       }
-
     }
   )
   ReleaseNotes     = '<Release_Notes>'
