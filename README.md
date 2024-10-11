@@ -1,9 +1,9 @@
 # <img align="right" src="docs/img/icon.png" width="200" height="200" alt="icon" />
 
 <div align="Left">
-  <h2>PsCraft</h2>
+  <a href="https://www.powershellgallery.com/packages/PsCraft"><b>PsCraft</b></a>
   <p>
-    <a href="https://www.powershellgallery.com/packages/PsCraft"><b>PsCraft</b></a> is a toolbox to accelerate common tasks involved in <b>developing and sharing PowerShell code</b>.
+    A toolbox to accelerate common tasks involved in <b>developing and sharing PowerShell code</b>.
     </br></br>
     <a href="https://github.com/alainQtec/PsCraft/actions/workflows/CI.yaml">
     <img src="https://github.com/alainQtec/PsCraft/actions/workflows/CI.yaml/badge.svg" alt="CI"/>
@@ -34,7 +34,8 @@ For more usage read the [docs](/docs/Readme.md). they pretty easy!
 
 ## [WIP] Features
 
-- [x] **Module Creation & Management**: `PsCraft.ModuleHandler.psm1`
+- [x] **Module Creation & Management**:
+      [`PsCraft.ModuleManager`](Private/PsCraft.ModuleManager/PsCraft.ModuleManager.psm1)
 
   A module to build robust modules with ease.
 
