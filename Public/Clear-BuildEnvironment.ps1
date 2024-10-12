@@ -37,7 +37,7 @@
     }
   }
   end {
-    # [PSModuleInfo]::ClearAppDomainLevelModulePathCache()
+    # [PsModuleInfo]::ClearAppDomainLevelModulePathCache()
     if (![bool][int]$env:IsAC) {
       # ......
     }
