@@ -3,7 +3,7 @@ function Find-InstalledModule {
   # .SYNOPSIS
   #   Find modules installed on your machine based on scope, version, name, etc.
   # .DESCRIPTION
-  #   Its like using Get-InstalledModule but you can even find unregistered/"manually Installed" modules. (as long as they are in any of $env:PsmodulePath folders)
+  #   Its like using Get-InstalledModule but you can even find unregistered/"manually Installed" modules. (as long as they are in any of $env:PsModulePath folders)
   # .EXAMPLE
   #   Find-InstalledModule psake | Select-Object -Expand Path | Import-Module -Verbose
   # .NOTES
