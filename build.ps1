@@ -1,4 +1,4 @@
-﻿# .SYNOPSIS
+# .SYNOPSIS
 #   Module builder build script
 # .DESCRIPTION
 #   A build script that uses its own module. 🗿
