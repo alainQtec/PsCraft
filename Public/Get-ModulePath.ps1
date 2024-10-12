@@ -3,7 +3,7 @@
   #  Gets the path of installed module; a path you can use with Import-module.
   # .EXAMPLE
   # Get-ModulePath -Name posh-git -version 0.7.3 | Import-module -verbose
-  # Will retrieve posh-git version 0.7.3 from $env:psmodulepath and import it.
+  # Will retrieve posh-git version 0.7.3 from $env:PsModulepath and import it.
   [CmdletBinding()][OutputType([string])]
   param(
     [Parameter(Mandatory = $true, Position = 0)]
