@@ -1,15 +1,15 @@
-function New-PSModule {
+function New-PsModule {
   # .SYNOPSIS
-  #   Creates/Writes a psmodule Object On disk
+  #   Creates a PsModule Object, that can be saved to the disk.
   # .DESCRIPTION
   #   A longer description of the function, its purpose, common use cases, etc.
   # .LINK
-  #   https://github.com/alainQtec/PsCraft/blob/nain/Public/New-PSModule.ps1
+  #   https://github.com/alainQtec/PsCraft/blob/nain/Public/New-PsModule.ps1
   # .EXAMPLE
-  #   New-PSModule -Verbose
+  #   New-PsModule -Verbose
   #   Explanation of the function or its result. You can include multiple examples with additional .EXAMPLE lines
   # .OUTPUTS
-  #   [PSmodule]
+  #   [PsModule]
   [CmdletBinding(SupportsShouldProcess, DefaultParametersetName = 'ByName')]
   param (
     # The Name Of your Module; note that it Should always match BaseName of its path.
@@ -34,11 +34,11 @@ function New-PSModule {
   process {
     Write-Verbose "Creating Module ..."
     if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey("Path")) {
-      $ModuleOb = [PsModule]::Creat($Name, $path)
+      $ModuleOb = [PsModule]::Create($Name, $path)
     } else {
       $ModuleOb = [PsModule]::Create($Name)
     }
-    if ($PSCmdlet.ShouldProcess("", "", "Creating Module folder Structure")) {
+    if ($PSCmdlet.ShouldProcess("", "", "Write Module folder Structure")) {
       $ModuleOb.Save()
     }
   }
