@@ -7,6 +7,11 @@ using namespace system.management.automation
 using namespace System.Management.Automation.Language
 
 #region    Classes
+# .SYNOPSIS
+#  PsCraft: the giga-chad module builder and manager.
+# .EXAMPLE
+#  [PsModule]$module = New-PsModule "MyModule"   # Creates a new module named "MyModule" in $pwd
+#  $builder = [PsCraft]::new($module.Path)
 class PsCraft : ModuleManager {
   static [IO.FileInfo] InstallPsGalleryModule([string]$moduleName) {
     return [PsCraft]::InstallPsGalleryModule($moduleName, 'latest', $false)
@@ -66,7 +71,7 @@ class PsCraft : ModuleManager {
     }
     return [ParseResult]::new($ParseErrors, $Tokens, $AST)
   }
-  static [void] CreateModuleFolderStructure([PSmodule]$Module) {
+  static [void] CreateModuleFolderStructure([PsModule]$Module) {
     #TODO: Do stuff before saving the module. (fs preparation & cheking requirements)
     $Module.Save()
   }
@@ -82,14 +87,13 @@ $CurrentCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture.Name
 $script:localizedData = if ($null -ne (Get-Command Get-LocalizedData -ErrorAction SilentlyContinue)) {
   Get-LocalizedData -DefaultUICulture $CurrentCulture
 } else {
-  $dataFile = [FileInfo]::new([IO.Path]::Combine((Get-Location), $CurrentCulture, 'PsCraft.strings.psd1'))
-  if (!$dataFile.Exists) { throw [FileNotFoundException]::new('Unable to find the LocalizedData file.', 'PsCraft.strings.psd1') }
-  [scriptblock]::Create("$([IO.File]::ReadAllText($dataFile))").Invoke()
+  [PsCraft]::GetLocalizedData((Resolve-Path .).Path)
 }
 
 # Types that will be available to users when they import the module.
 $typestoExport = @(
   [LocalPsModule],
+  [PsModuleData],
   [PsModule],
   [PsCraft]
 )
