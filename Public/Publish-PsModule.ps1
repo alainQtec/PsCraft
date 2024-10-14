@@ -1,6 +1,6 @@
 function Publish-PsModule {
   # .SYNOPSIS
-  #   Publish PSModule To Local or Remote Repo
+  #   Publish PsModule To Local or Remote Repo
   # .DESCRIPTION
   #   A longer description of the function, its purpose, common use cases, etc.
   # .NOTES
