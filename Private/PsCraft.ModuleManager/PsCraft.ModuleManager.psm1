@@ -14,11 +14,19 @@ enum SaveOptions {
   DetectChangesBeforeSave # Before changes are saved, the DetectChanges method is called to synchronize Objects.
   None # Changes are saved without the DetectChanges or the AcceptAllChangesAfterSave methods being called. This can be equivalent of Force, as it can ovewrite objects.
 }
-
 enum PSEdition {
   Desktop
   Core
 }
+enum InstallScope {
+  LocalMachine # same as AllUsers
+  CurrentUser
+}
+enum MdtAttribute {
+  ManifestKey
+  FileContent
+}
+
 #region    Classes
 
 # .SYNOPSIS
@@ -45,7 +53,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
   [ValidateNotNullOrEmpty()][FileInfo]$dataFile # ..strings.psd1
   [ValidateNotNullOrEmpty()][FileInfo]$buildFile
   static [DirectoryInfo]$LocalPSRepo
-  static [Collection[psobject]]$LocalizedData
+  static [Collection[PsObject]]$LocalizedData
   static [PSCmdlet]$CallerCmdlet
   static [bool]$Useverbose
 
@@ -57,7 +65,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
   [bool] ImportModule([string]$path) {
     try {
       $m = Import-Module -Name $path -Force -PassThru
-      if ($m) { $m.Psobject.Properties.Name.ForEach({ $this.$($_) = $m.$($_) }) }
+      if ($m) { $m.PsObject.Properties.Name.ForEach({ $this.$($_) = $m.$($_) }) }
       return $?
     } catch {
       Write-Error "Failed to import module: $_"
@@ -100,7 +108,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
       Install-PackageProvider -Name NuGet -Force | Out-Null
     }
     $null = Import-PackageProvider -Name NuGet -Force
-    foreach ($Name in @('PackageManagement', 'PowerShellGet')) {
+    ForEach ($Name in @('PackageManagement', 'PowerShellGet')) {
       $(Get-Variable Host -ValueOnly).UI.WriteLine(); Resolve-Module -Name $Name -ro -u -Verbose:$script:DefaultParameterValues['*-Module:Verbose'] -ErrorAction Stop
     }
     $build_sys = [Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildSystem');
@@ -149,7 +157,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     Remove-Item -Path $this.buildFile.FullName -Verbose | Out-Null
     [Console]::WriteLine()
   }
-  [psobject] TestModule() {
+  [PsObject] TestModule() {
     if ([string]::IsNullOrWhiteSpace($this.version)) {
       $this.Moduleversion = [version[]][DirectoryInfo]::New([Path]::Combine($this.BuildOutputPath, $this.ModuleName)).GetDirectories().Name | Select-Object -Last 1
     }
@@ -220,12 +228,12 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
         }
         $outputDir = [Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildOutput')
         $Timestamp = Get-Date -UFormat "%Y%m%d-%H%M%S"
-        $PSVersion = $PSVersionTable.PSVersion.ToString()
+        $PowerShellVersion = $PSVersionTable.PSVersion.ToString()
         $outputModDir = [Path]::Combine([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildOutput'), $ProjectName)
         $tests = [IO.Path]::Combine($projectRoot, "Tests");
         $lines = ('-' * 70)
         $Verbose = @{}
-        $TestFile = "TestResults_PS$PSVersion`_$TimeStamp.xml"
+        $TestFile = "TestResults_PS$PowerShellVersion`_$TimeStamp.xml"
         $outputModVerDir = [IO.Path]::Combine([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildOutput'), $ProjectName, $BuildNumber)
         $PathSeperator = [IO.Path]::PathSeparator
         $DirSeperator = [IO.Path]::DirectorySeparatorChar
@@ -504,8 +512,8 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     $BuildOutput = [Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildOutput')
     $this.ModulePath = [Path]::Combine($BuildOutput, $ModuleName, $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildNumber')))
     [void][ModuleManager]::WriteHeading("Publish to Local PsRepository")
-    $dependencies = [ModuleManager]::ReadPsModuleDataFile([Path]::Combine($this.ModulePath, "$([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')).psd1"), "RequiredModules")
-    foreach ($item in $dependencies) {
+    $dependencies = [ModuleManager]::Read_Module_Manifest([Path]::Combine($this.ModulePath, "$([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')).psd1"), "RequiredModules")
+    ForEach ($item in $dependencies) {
       $md = Get-Module $item -Verbose:$false; $mdPath = $md.Path | Split-Path
       Write-Verbose "Publish RequiredModule $item ..."
       Publish-Module -Path $mdPath -Repository LocalPSRepo -Verbose:$false
@@ -530,24 +538,26 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     }
     return $RepoPath
   }
-  [void] FormatCode() {
-    [ModuleManager]::FormatCode($this.RootPath)
+  [object[]] FormatCode() {
+    return [ModuleManager]::FormatCode($this.RootPath)
   }
-  static [void] FormatCode([PsModule]$module) {
+  static [object[]] FormatCode([PsModule]$module) {
     [int]$errorCount = 0
     [int]$maxRetries = 5
-    [DirectoryInfo]$repoRoot = $module.directories.root
-    $filesToCheck = Get-ChildItem -Path $repoRoot -Directory | Where-Object {
+    $results = @()
+    if (!$module.Path.Exists) { return $results }
+    $filesToCheck = Get-ChildItem -Path $module.Path -Directory | Where-Object {
       $_.Name -ne "dist" } | ForEach-Object {
       Get-ChildItem -Path $_.FullName -Include "*.ps1", "*.psm1", "*.md" -Recurse
     }
-    foreach ($fileInfo in $filesToCheck) {
+    $ScriptAnalyzer = $module.Files.Where({ $_.Name -eq "ScriptAnalyzer" })[0].Value.FullName
+    ForEach ($fileInfo in $filesToCheck) {
       for ($i = 0; $i -lt $maxRetries; $i++) {
         try {
-          $analyzerResults = Invoke-ScriptAnalyzer -Path $FileInfo.FullName -Settings $module.files.ScriptAnalyzer.FullName -ErrorAction Stop
+          $analyzerResults = Invoke-ScriptAnalyzer -Path $FileInfo.FullName -Settings $ScriptAnalyzer -ErrorAction Stop
           if ($null -ne $analyzerResults) {
             $errorCount++
-            $analyzerResults | Format-Table -AutoSize
+            $results += $analyzerResults | Format-Table -AutoSize
           }
           break
         } catch {
@@ -557,7 +567,6 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
           Start-Sleep -Seconds 5
         }
       }
-
       if ($i -eq $maxRetries) {
         throw "Invoke-ScriptAnalyzer failed $maxRetries times. Giving up."
       }
@@ -565,6 +574,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
         throw "Failed to match formatting requirements"
       }
     }
+    return $results
   }
   static [string] GetInstallPath([string]$Name, [string]$ReqVersion) {
     $p = [DirectoryInfo][IO.Path]::Combine(
@@ -662,7 +672,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     $Items_to_CleanUp = [System.Collections.ObjectModel.Collection[System.Object]]::new()
     @('_rels', 'package', '*Content_Types*.xml', "$ModuleNupkg", "$($moduleName.Tolower()).nuspec" ) | ForEach-Object { [void]$Items_to_CleanUp.Add((Get-Item -Path "$Module_Path/$_" -ErrorAction Ignore)) }
     $Items_to_CleanUp = $Items_to_CleanUp | Sort-Object -Unique
-    foreach ($Item in $Items_to_CleanUp) {
+    ForEach ($Item in $Items_to_CleanUp) {
       [bool]$Recurse = $Item.Attributes -eq [FileAttributes]::Directory
       Remove-Item -LiteralPath $Item.FullName -Recurse:$Recurse -Force -ErrorAction SilentlyContinue
     }
@@ -717,7 +727,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     }; $r = @()
     if ($Ast.PipelineElements.Expression -is [System.Management.Automation.Language.HashtableAst]) {
       $KeyValue = $Ast.PipelineElements.Expression
-      foreach ($KV in $KeyValue.KeyValuePairs) {
+      ForEach ($KV in $KeyValue.KeyValuePairs) {
         $result = [ModuleManager]::FindHashKeyValue($PropertyName, $KV.Item2, @($CurrentPath + $KV.Item1.Value))
         if ($null -ne $result) {
           $r += $result
@@ -892,7 +902,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     $result = [LocalPsModule]::new(); $result.Scope = 'LocalMachine'
     $ModulePsd1 = ($ModuleBase.GetFiles().Where({ $_.Name -like "$Name*" -and $_.Extension -eq '.psd1' }))[0]
     if ($null -eq $ModulePsd1) { return $result }
-    $result.Info = [ModuleManager]::ReadPsModuleDataFile($ModulePsd1.FullName)
+    $result.Info = [ModuleManager]::Read_Module_Manifest($ModulePsd1.FullName)
     $result.Name = $ModulePsd1.BaseName
     $result.Psd1 = $ModulePsd1
     $result.Path = if ($result.Psd1.Directory.Name -as [version] -is [version]) { $result.Psd1.Directory.Parent } else { $result.Psd1.Directory }
@@ -931,26 +941,25 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
   }
   static [string[]] GetModulePaths([string]$scope) {
     [string[]]$_Module_Paths = [Environment]::GetEnvironmentVariable('PsModulePath').Split([IO.Path]::PathSeparator)
-    if ([string]::IsNullOrWhiteSpace($scope)) { return $_Module_Paths }
-    [ValidateSet('LocalMachine', 'CurrentUser')][string]$scope = $scope
+    if ([string]::IsNullOrWhiteSpace($scope)) { return $_Module_Paths }; [InstallScope]$scope = $scope
     if (!(Get-Variable -Name IsWindows -ErrorAction Ignore) -or $(Get-Variable IsWindows -ValueOnly)) {
       $psv = Get-Variable PSVersionTable -ValueOnly
       $allUsers_path = Join-Path -Path $env:ProgramFiles -ChildPath $(if ($psv.ContainsKey('PSEdition') -and $psv.PSEdition -eq 'Core') { 'PowerShell' } else { 'WindowsPowerShell' })
-      if ($Scope -eq 'CurrentUser') { $_Module_Paths = $_Module_Paths.Where({ $_ -notlike "*$($allUsers_path | Split-Path)*" -and $_ -notlike "*$env:SystemRoot*" }) }
+      if ("$Scope" -eq 'CurrentUser') { $_Module_Paths = $_Module_Paths.Where({ $_ -notlike "*$($allUsers_path | Split-Path)*" -and $_ -notlike "*$env:SystemRoot*" }) }
     } else {
       $allUsers_path = Split-Path -Path ([Platform]::SelectProductNameForDirectory('SHARED_MODULES')) -Parent
-      if ($Scope -eq 'CurrentUser') { $_Module_Paths = $_Module_Paths.Where({ $_ -notlike "*$($allUsers_path | Split-Path)*" -and $_ -notlike "*/var/lib/*" }) }
+      if ("$Scope" -eq 'CurrentUser') { $_Module_Paths = $_Module_Paths.Where({ $_ -notlike "*$($allUsers_path | Split-Path)*" -and $_ -notlike "*/var/lib/*" }) }
     }
     return $_Module_Paths
   }
-  static [PSObject] ReadPsModuleDataFile([string]$Path) {
+  static [PsObject] Read_Module_Manifest([string]$Path) {
     [ValidateNotNullOrWhiteSpace()][string]$Path = $Path
-    return [ModuleManager]::ReadPsModuleDataFile($Path, $null)
+    return [ModuleManager]::Read_Module_Manifest($Path, $null)
   }
-  static [psobject] ReadPsModuleDataFile([string]$Path, [string]$PropertyName) {
+  static [PsObject] Read_Module_Manifest([string]$Path, [string]$PropertyName) {
     if ([string]::IsNullOrWhiteSpace($PropertyName)) {
       $null = Get-Item -Path $Path -ErrorAction Stop
-      $data = New-Object PSObject; $text = [IO.File]::ReadAllText("$Path")
+      $data = New-Object PsObject; $text = [IO.File]::ReadAllText("$Path")
       $data = [scriptblock]::Create("$text").Invoke()
       return $data
     }
@@ -982,7 +991,6 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     }
     if ($KeyValue.Count -gt 1) {
       $SingleKey = @($KeyValue | Where-Object { $_.HashKeyPath -eq $PropertyName })
-
       if ($SingleKey.Count -gt 1) {
         $Error_params = @{
           ExceptionName    = "System.Reflection.AmbiguousMatchException"
@@ -1007,16 +1015,16 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
       throw [InvalidEnumArgumentException]::new("The path string contains invalid characters.")
     }
   }
-  static [string] GetLicenseText() {
-    if (![PsModuleData]::LICENSE_TXT) {
-      # $mit = (Invoke-WebRequest https://opensource.apple.com/source/dovecot/dovecot-293/dovecot/COPYING.MIT -Verbose:$false -SkipHttpErrorCheck).Content
-      [PsModuleData]::LICENSE_TXT = [string](Invoke-WebRequest http://sam.zoy.org/wtfpl/COPYING -Verbose:$false -SkipHttpErrorCheck).Content
-      if (![string]::IsNullOrWhiteSpace([PsModuleData]::LICENSE_TXT)) { [PsModuleData]::LICENSE_TXT = [PsModuleData]::LICENSE_TXT.Replace('2004 Sam Hocevar <sam@hocevar.net>', "<Year> <AuthorName> <AuthorEmail>") }
-    }
-    return [PsModuleData]::LICENSE_TXT
-  }
+  # static [string] GetLicenseText() {
+  #   if (![PsModu_leData]::LICENSE_TXT) {
+  #     # $mit = (Invoke-WebRequest https://opensource.apple.com/source/dovecot/dovecot-293/dovecot/COPYING.MIT -Verbose:$false -SkipHttpErrorCheck).Content
+  #     [PsModu_leData]::LICENSE_TXT = [string](Invoke-WebRequest http://sam.zoy.org/wtfpl/COPYING -Verbose:$false -SkipHttpErrorCheck).Content
+  #     if (![string]::IsNullOrWhiteSpace([PsModu_leData]::LICENSE_TXT)) { [PsModu_leData]::LICENSE_TXT = [PsModu_leData]::LICENSE_TXT.Replace('2004 Sam Hocevar <sam@hocevar.net>', "<Year> <AuthorName> <AuthorEmail>") }
+  #   }
+  #   return [PsModu_leData]::LICENSE_TXT
+  # }
   static [version] GetModuleVersion([string]$Psd1Path) {
-    $data = [ModuleManager]::ReadPsModuleDataFile($Psd1Path)
+    $data = [ModuleManager]::Read_Module_Manifest($Psd1Path)
     $_ver = $data.ModuleVersion; if ($null -eq $_ver) { $_ver = [version][IO.FileInfo]::New($Psd1Path).Directory.Name }
     return $_ver
   }
@@ -1058,16 +1066,43 @@ class ModuleFolder {
   }
 }
 
+class PsModuleData {
+  static hidden [string[]] $configuration_values = $(Get-Module -Verbose:$false)[0].PsObject.Properties.Name + 'ModuleVersion'
+  [ValidateNotNullOrWhiteSpace()][String] $Key
+  [ValidateNotNullOrEmpty()][Type] $Type
+  [MdtAttribute[]] $Attributes = @()
+  hidden $Value
+
+  PsModuleData([array]$Props) {
+    if ($Props.Count -eq 3) {
+      [void][PsModule]::CreateModuleData($Props[0], $Props[1], $Props[2], [ref]$this)
+    } elseif ($Props.Count -eq 2) {
+      [void][PsModule]::CreateModuleData($Props[0], $Props[1], [ref]$this)
+    } else {
+      throw [System.TypeInitializationException]::new("PsModuleData", [System.ArgumentException]::new("[PsModuleData]::new([array]`$Props) failed. Props.count should be 3 or 2."))
+    }
+  }
+  PsModuleData([String]$Key, $Value) {
+    [void][PsModule]::CreateModuleData($Key, $Value, $Value.GetType(), @(), [ref]$this)
+  }
+  PsModuleData([String]$Key, $Value, [Type]$Type) {
+    [void][PsModule]::CreateModuleData($Key, $Value, $Type, @(), [ref]$this)
+  }
+  PsModuleData([String]$Key, $Value, [ModuleFile[]]$files) {
+    [void][PsModule]::CreateModuleData($Key, $Value, $Value.GetType(), $files, [ref]$this)
+  }
+}
+
 class LocalPsModule {
-  [ValidateNotNullOrWhiteSpace()][string]$Name
+  [ValidateNotNullOrEmpty()][FileInfo]$Psd1
   [ValidateNotNullOrEmpty()][version]$version
-  [ValidateNotNullOrEmpty()][IO.FileInfo]$Psd1
-  [ValidateSet('LocalMachine', 'CurrentUser')][String]$Scope
+  [ValidateNotNullOrWhiteSpace()][string]$Name
   [ValidateNotNullOrEmpty()][DirectoryInfo]$Path
-  [bool]$Exists = $false
-  [PsObject]$Info = $null
-  [bool]$IsReadOnly = $false
   [bool]$HasVersiondirs = $false
+  [bool]$IsReadOnly = $false
+  [PsObject]$Info = $null
+  [bool]$Exists = $false
+  [InstallScope]$Scope
 
   LocalPsModule() {}
   LocalPsModule([string]$Name) {
@@ -1126,19 +1161,19 @@ class ParseResult {
 class PsModule {
   [ValidateNotNullOrEmpty()] [String]$Name;
   [ValidateNotNullOrEmpty()] [FileInfo]$Path;
+  [Collection[PsModuleData]]$Data;
   [List[ModuleFolder]]$Folders;
   [List[ModuleFile]]$Files;
-  [PsModuleData] $Data;
   static [bool] hidden $_n = $true # todo: fix: remove this property.
 
   PsModule() {
-    [PsModule]::_Create($null, $null, @(), [ref]$this)
+    [PsModule]::Create($null, $null, @(), [ref]$this)
   }
   PsModule([string]$Name) {
-    [PsModule]::_Create($Name, $null, $null, [ref]$this)
+    [PsModule]::Create($Name, $null, $null, [ref]$this)
   }
   PsModule([string]$Name, [DirectoryInfo]$Path) {
-    [PsModule]::_Create($Name, $Path, @(), [ref]$this)
+    [PsModule]::Create($Name, $Path, @(), [ref]$this)
   }
   # TODO: WIP
   # PsModule([Array]$Configuration) {
@@ -1158,7 +1193,7 @@ class PsModule {
       return [PsModule]::Load($d)
     }
   }
-  static [PsModule] _Create([string]$Name, [DirectoryInfo]$Path, [Array]$Config, [ref]$o) {
+  static hidden [PsModule] Create([string]$Name, [DirectoryInfo]$Path, [Array]$Config, [ref]$o) {
     if ($null -ne $Config) {
       # Config includes:
       # - Build steps
@@ -1166,54 +1201,51 @@ class PsModule {
     }
     if ($null -eq $o.Value -and [PsModule]::_n) { [PsModule]::_n = $false; $n = [PsModule]::new(); $o = [ref]$n }
     $o.Value.Name = [string]::IsNullOrWhiteSpace($Name) ? [IO.Path]::GetFileNameWithoutExtension([IO.Path]::GetRandomFileName()) : $Name
-    $o.Value.Data = [PsModuleData]::Create($o.Value.Name)
-    [string]::IsNullOrWhiteSpace($Path.FullName) ? $o.Value.SetPath($o.Value.Name, $Path.FullName) : $o.Value.SetPath()
-    return $o.Value
-  }
-  [void] SetPath() { $this.SetPath($this.Name, '') }
-  [void] SetPath([string]$mName, [string]$rootpath) {
+    ($mName, $rootpath) = [string]::IsNullOrWhiteSpace($Path.FullName) ? ($o.Value.Name, $Path.FullName) : ($o.Value.Name, "")
     $mroot = [Path]::Combine([ModuleManager]::GetUnResolvedPath($(
           switch ($true) {
             $(![string]::IsNullOrWhiteSpace($rootpath)) { $rootpath; break }
-            $this.Path {
-              if ([IO.Path]::GetFileNameWithoutExtension($this.Path) -ne $mName) {
-                $this.Path = [FileInfo][Path]::Combine(([Path]::GetDirectoryName($this.Path) | Split-Path), "$mName.psd1")
+            $o.Value.Path {
+              if ([Path]::GetFileNameWithoutExtension($o.Value.Path) -ne $mName) {
+                $o.Value.Path = [FileInfo][Path]::Combine(([Path]::GetDirectoryName($o.Value.Path) | Split-Path), "$mName.psd1")
               }
-              [Path]::GetDirectoryName($this.Path);
+              [Path]::GetDirectoryName($o.Value.Path);
               break
             }
             Default { $(Resolve-Path .).Path }
           })
       ), $mName)
-    [void][ModuleManager]::validatePath($mroot);
-    $this.Files = [List[ModuleFile]]::new()
-    $this.Folders = [List[ModuleFolder]]::new()
+    [void][ModuleManager]::validatePath($mroot); $o.Value.Path = $mroot
+    $o.Value.Files = [List[ModuleFile]]::new()
+    $o.Value.Folders = [List[ModuleFolder]]::new()
     $mtest = [Path]::Combine($mroot, 'Tests');
-    $dt = @{
+    $dr = @{
       root      = $mroot
       tests     = [Path]::Combine($mroot, 'Tests');
       public    = [Path]::Combine($mroot, 'Public')
       private   = [Path]::Combine($mroot, 'Private')
-      localdata = [Path]::Combine($mroot, [Thread]::CurrentThread.CurrentCulture.Name)
+      localdata = [Path]::Combine($mroot, [Thread]::CurrentThread.CurrentCulture.Name) # The purpose of this folder is to store localized content for your module, such as help files, error messages, or any other text that needs to be displayed in different languages.
       workflows = [Path]::Combine($mroot, '.github', 'workflows')
-      # Add more here
+      # Add more here. you can access them like: $this.Folders.Where({ $_.Name -eq "root" }).value.FullName
     };
-    $dt.Keys.ForEach({ $this.Folders += [modulefolder]::new($_, $dt[$_]) })
-    $ft = @{
+    $dr.Keys.ForEach({ $o.Value.Folders += [ModuleFolder]::new($_, $dr[$_]) })
+    $fl = @{
       Path            = [Path]::Combine($mroot, "$mName.psd1")
       Builder         = [Path]::Combine($mroot, "build.ps1")
       License         = [Path]::Combine($mroot, "LICENSE")
       ReadmeMd        = [Path]::Combine($mroot, "README.md")
       Manifest        = [Path]::Combine($mroot, "$mName.psd1")
+      Localdata       = [Path]::Combine($dr["localdata"], "$mName.strings.psd1")
       rootLoader      = [Path]::Combine($mroot, "$mName.psm1")
-      ScriptAnalyzer  = [Path]::Combine($mroot, "PSScriptAnalyzerSettings.psd1")
-      Localdata       = [Path]::Combine($dt["localdata"], "$mName.strings.psd1")
       ModuleTest      = [Path]::Combine($mtest, "$mName.Module.Tests.ps1")
       FeatureTest     = [Path]::Combine($mtest, "$mName.Features.Tests.ps1")
+      ScriptAnalyzer  = [Path]::Combine($mroot, "PSScriptAnalyzerSettings.psd1")
       IntegrationTest = [Path]::Combine($mtest, "$mName.Integration.Tests.ps1")
       # Add more here
     };
-    $ft.Keys.ForEach({ $this.Files += [ModuleFile]::new($_, $ft[$_]) })
+    $fl.Keys.ForEach({ $o.Value.Files += [ModuleFile]::new($_, $fl[$_]) })
+    $o.Value.CreateModuleData(); # same as: $o.Value.Data = [PsModule]::CreateModuleData($o.Value.Name, $o.Value.Path, $o.Value.Files);
+    return $o.Value
   }
   [PsModule] static Load($Path) {
     # TODO: Add some Module load~ng code Here
@@ -1223,6 +1255,421 @@ class PsModule {
     # TODO: Add some Module Loading code Here
     return ''
   }
+  [void] CreateModuleData() {
+    $this.Data = [PsModule]::CreateModuleData([string]$this.Name, [string]$this.Path, [ModuleFile[]]$this.Files);
+  }
+  static [Collection[PsModuleData]] CreateModuleData([string]$Name, [string]$Path, [List[ModuleFile]]$Files) {
+    # static [PsModu_leData] Create([string]$Name, [DirectoryInfo]$Psdroot) {
+    #   return [PsModu_leData]::Create($Name, [version]::new(0, 1, 0), $Psdroot)
+    # }
+    # static [PsModu_leData] Create([string]$Name, [version]$Version, [DirectoryInfo]$Psdroot) {
+    #   $o = [PsModu_leData]::new(); $o.set_props([PSCustomObject]@{ Name = $Name; Version = $Version; Path = [path]::Combine($Psdroot.FullName, "$Name.psd1") })
+    #   return $o
+    # }
+    # trimmmmm:
+    # $o.Value.PsObject.properties.Name.ForEach({
+    # $str = $(([PsModule]::Data.$_).ToString().Split("`n") -as [string[]]).ForEach({
+    #         if ($_.Length -ge 12) { $_.Substring(12) }
+    #     }
+    # )
+    # replace propssssss:
+    # ForEach ($prop in $props) {
+    #   $n = $prop.Name
+    #   $t = $prop.TypeName -as [type]
+    #   if ($null -eq $t) { Write-Warning "Unable to find type [$n]"; continue }
+    #   switch ($t.Name) {
+    #     'ScriptBlock' { $phv.Keys.ForEach({ if ($null -ne $this.$n) { $sString = $this.$n.ToString().Replace("<$_>", $phv.$_); $this.$n = [scriptblock]::Create($sString) } }); break }
+    #     'String' { $phv.Keys.ForEach({ if ($null -ne $this.$n) { $this.$n = $this.$n.Replace("<$_>", $phv.$_) } }); break }
+    #     Default { continue }
+    #   }
+    # }
+    # [version] hidden $DotNetFrameworkVersion;
+    # [version] hidden $PowerShellHostVersion;
+    # [string[]] hidden $DscResourcesToExport;
+    # [string] hidden $DefaultCommandPrefix;
+    # [string[]] hidden $RequiredAssemblies;
+    # [string[]] hidden $FunctionsToExport;
+    # [string[]] hidden $VariablesToExport;
+    # [string[]] hidden $FormatsToProcess;
+    # [string[]] hidden $ScriptsToProcess;
+    # [String] hidden $PowerShellHostName;
+    # [string[]] hidden $AliasesToExport;
+    # [string[]] hidden $CmdletsToExport;
+    # [Object[]] hidden $RequiredModules;
+    # [string[]] hidden $TypesToProcess;
+    # [Object[]] hidden $NestedModules;
+    # [Object[]] hidden $ModuleList;
+    # [string] hidden $ReleaseNotes;
+    # [string] hidden $HelpInfoUri;
+    # [Object] hidden $PrivateData;
+    # [string[]] hidden $FileList;
+    # [uri] hidden $ProjectUri;
+    # [uri] hidden $LicenseUri;
+    # [uri] hidden $IconUri;
+    $propsHashtable = @{
+      Path                  = [Path]::Combine($Path, $Path.Split([Path]::DirectorySeparatorChar)[-1] + ".psd1")
+      Guid                  = [guid]::NewGuid()
+      Author                = [ModuleManager]::GetAuthorName()
+      Copyright             = $("Copyright {0} {1} {2}. All rights reserved." -f [string][char]169, [datetime]::Now.Year, [ModuleManager]::GetAuthorName());
+      RootModule            = $Name + '.psm1'
+      ClrVersion            = [string]::Join('.', (Get-Variable 'PSVersionTable' -ValueOnly).SerializationVersion.ToString().split('.')[0..2])
+      ModuleName            = $($Name ? $Name : '')
+      Description           = "A longer description of the Module, its purpose, common use cases, etc."
+      CompanyName           = [ModuleManager]::GetAuthorEmail().Split('@')[0]
+      ModuleVersion         = [version]::new(0, 1, 0)
+      PowerShellVersion     = [version][string]::Join('', (Get-Variable 'PSVersionTable').Value.PSVersion.Major.ToString(), '.0')
+      ProcessorArchitecture = 'None'
+      # TODO: ask ai to generate readme
+      ReadmeMd              = [string][StringBuilder]::new('
+      # [<ModuleName>](https://www.powershellgallery.com/packages/<ModuleName>)
+
+      🔥 Blazingly fast PowerShell thingy that stonks up your terminal game.
+
+      ## Usage
+
+      ```PowerShell
+      Install-Module <ModuleName>
+      ```
+
+      then
+
+      ```PowerShell
+      Import-Module <ModuleName>
+      # do stuff here.
+      ```
+
+      ## License
+
+      This project is licensed under the [WTFPL License](LICENSE).'
+      )
+      License               = [string][StringBuilder]::new('
+                    DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+                            Version 2, December 2004
+
+        Copyright (C) <Year> <AuthorName> <<AuthorEmail>>
+
+        Everyone is permitted to copy and distribute verbatim or modified
+        copies of this license document, and changing it is allowed as long
+        as the name is changed.
+
+                    DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+          TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
+
+          0. You just DO WHAT THE FUCK YOU WANT TO.'
+      )
+      # TODO: ask ai to generate release notes
+      ReleaseNotes          = [string][StringBuilder]::new('
+        # Release Notes
+
+        ## Version _<ModuleVersion>_
+
+        ### New Features
+
+        - Added feature abc.
+        - Added feature defg.
+
+        ### Installation
+
+        ```PowerShell
+        Install-Module <ModuleName>
+        ```
+        Thats it. If that fails, try running manual installation:
+
+        1. Download the
+          [ModuleZip](https://github.com/<UserName>/<ModuleName>/releases/download/v<ModuleVersion>/<ModuleName>.zip)
+          file attached to the release.
+        2. **If on Windows**: Right-click the downloaded zip, select Properties, then
+          unblock the file.
+          > _This is to prevent having to unblock each file individually after
+          > unzipping._
+        3. Unzip the archive.
+        4. (Optional) Place the module folder somewhere in your `PsModulePath`.
+          > _You can view the paths listed by running the environment variable
+          > `$env:PsModulePath`_
+        5. Import the module, using the full path to the PSD1 file in place of
+            `<ModuleName>` if the unzipped module folder is not in your `PsModulePath`:
+
+          ```powershell
+            # In Env:PsModulePath
+          Import-Module <ModuleName>
+
+          # Otherwise, provide the path to the manifest:
+          Import-Module -Path Path/to/<ModuleName>/<ModuleVersion>/<ModuleName>.psd1
+          ```'
+      )
+      Builder               = {
+        # .SYNOPSIS
+        #   <ModuleName> build script
+        # .DESCRIPTION
+        #   A build script that uses another buider module (PsCraft) 🗿
+        # .LINK
+        #   https://github.com/<userName>/<ModuleName>/blob/main/build.ps1
+        # .NOTES
+        #   Author   : <AuthorName>
+        #   Copyright: © <Year> <UserName> <<AuthorEmail>>. All rights reserved.
+        #   License  : MIT
+        # .EXAMPLE
+        #   Import-Module PsCraft; Build-Module -Task Test -Verbose
+        [cmdletbinding(DefaultParameterSetName = 'task')]
+        param(
+          [parameter(Position = 0, ParameterSetName = 'task')]
+          [ValidateScript({
+              $task_seq = [string[]]$_; $IsValid = $true
+              $Tasks = @('Init', 'Clean', 'Compile', 'Import', 'Test', 'Deploy')
+              ForEach ($name in $task_seq) {
+                $IsValid = $IsValid -and ($name -in $Tasks)
+              }
+              if ($IsValid) {
+                return $true
+              } else {
+                throw [System.ArgumentException]::new('Task', "ValidSet: $($Tasks -join ', ').")
+              }
+            }
+          )][ValidateNotNullOrEmpty()]
+          [string[]]$Task = @('Init', 'Clean', 'Compile', 'Import'),
+
+          [parameter(ParameterSetName = 'help')]
+          [Alias('-Help')]
+          [switch]$Help
+        )
+
+        Import-Module PsCraft
+        Build-Module -Task $Task
+      }
+      Localdata             = {
+        @{
+          ModuleName    = '<ModuleName>'
+          ModuleVersion = [version]'<ModuleVersion>'
+          ReleaseNotes  = '<ReleaseNotes>'
+        }
+      }
+      rootLoader            = {
+        #!/usr/bin/env pwsh
+        #region    Classes
+        #endregion Classes
+        $Private = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Private')) -Filter "*.ps1" -ErrorAction SilentlyContinue
+        $Public = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Public')) -Filter "*.ps1" -ErrorAction SilentlyContinue
+        # Load dependencies
+        $PrivateModules = [string[]](Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Private')) -ErrorAction SilentlyContinue | Where-Object { $_.PSIsContainer } | Select-Object -ExpandProperty FullName)
+        if ($PrivateModules.Count -gt 0) {
+          ForEach ($Module in $PrivateModules) {
+            Try {
+              Import-Module $Module -ErrorAction Stop
+            } Catch {
+              Write-Error "Failed to import module $Module : $_"
+            }
+          }
+        }
+        # Dot source the files
+        ForEach ($Import in ($Public, $Private)) {
+          Try {
+            . $Import.fullname
+          } Catch {
+            Write-Warning "Failed to import function $($Import.BaseName): $_"
+            $host.UI.WriteErrorLine($_)
+          }
+        }
+        # Export Public Functions
+        $Param = @{
+          Function = $Public.BaseName
+          Variable = '*'
+          Cmdlet   = '*'
+          Alias    = '*'
+        }
+        Export-ModuleMember @Param -Verbose
+      }
+      ModuleTest            = {
+        $script:ModuleName = (Get-Item "$PSScriptRoot/..").Name
+        $script:ModulePath = Resolve-Path "$PSScriptRoot/../BuildOutput/$ModuleName" | Get-Item
+        $script:moduleVersion = ((Get-ChildItem $ModulePath).Where({ $_.Name -as 'version' -is 'version' }).Name -as 'version[]' | Sort-Object -Descending)[0].ToString()
+
+        Write-Host "[+] Testing the latest built module:" -ForegroundColor Green
+        Write-Host "      ModuleName    $ModuleName"
+        Write-Host "      ModulePath    $ModulePath"
+        Write-Host "      Version       $moduleVersion`n"
+
+        Get-Module -Name $ModuleName | Remove-Module # Make sure no versions of the module are loaded
+
+        Write-Host "[+] Reading module information ..." -ForegroundColor Green
+        $script:ModuleInformation = Import-Module -Name "$ModulePath" -PassThru
+        $script:ModuleInformation | Format-List
+
+        Write-Host "[+] Get all functions present in the Manifest ..." -ForegroundColor Green
+        $script:ExportedFunctions = $ModuleInformation.ExportedFunctions.Values.Name
+        Write-Host "      ExportedFunctions: " -ForegroundColor DarkGray -NoNewline
+        Write-Host $($ExportedFunctions -join ', ')
+        $script:PS1Functions = Get-ChildItem -Path "$ModulePath/$moduleVersion/Public/*.ps1"
+
+        Describe "Module tests for $($([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')))" {
+          Context " Confirm valid Manifest file" {
+            It "Should contain RootModule" {
+              ![string]::IsNullOrWhiteSpace($ModuleInformation.RootModule) | Should -Be $true
+            }
+
+            It "Should contain ModuleVersion" {
+              ![string]::IsNullOrWhiteSpace($ModuleInformation.Version) | Should -Be $true
+            }
+
+            It "Should contain GUID" {
+              ![string]::IsNullOrWhiteSpace($ModuleInformation.Guid) | Should -Be $true
+            }
+
+            It "Should contain Author" {
+              ![string]::IsNullOrWhiteSpace($ModuleInformation.Author) | Should -Be $true
+            }
+
+            It "Should contain Description" {
+              ![string]::IsNullOrWhiteSpace($ModuleInformation.Description) | Should -Be $true
+            }
+          }
+          Context " Should export all public functions " {
+            It "Compare the number of Function Exported and the PS1 files found in the public folder" {
+              $status = $ExportedFunctions.Count -eq $PS1Functions.Count
+              $status | Should -Be $true
+            }
+
+            It "The number of missing functions should be 0 " {
+              If ($ExportedFunctions.count -ne $PS1Functions.count) {
+                $Compare = Compare-Object -ReferenceObject $ExportedFunctions -DifferenceObject $PS1Functions.Basename
+                $($Compare.InputObject -Join '').Trim() | Should -BeNullOrEmpty
+              }
+            }
+          }
+          Context " Confirm files are valid Powershell syntax " {
+            $_scripts = $(Get-Item -Path "$ModulePath/$moduleVersion").GetFiles(
+              "*", [System.IO.SearchOption]::AllDirectories
+            ).Where({ $_.Extension -in ('.ps1', '.psd1', '.psm1') })
+            $testCase = $_scripts | ForEach-Object { @{ file = $_ } }
+            It "ie: each Script/Ps1file should have valid Powershell sysntax" -TestCases $testCase {
+              param($file) $contents = Get-Content -Path $file.fullname -ErrorAction Stop
+              $errors = $null; [void][System.Management.Automation.PSParser]::Tokenize($contents, [ref]$errors)
+              $errors.Count | Should -Be 0
+            }
+          }
+          Context " Confirm there are no duplicate function names in private and public folders" {
+            It ' Should have no duplicate functions' {
+              $Publc_Dir = Get-Item -Path ([IO.Path]::Combine("$ModulePath/$moduleVersion", 'Public'))
+              $Privt_Dir = Get-Item -Path ([IO.Path]::Combine("$ModulePath/$moduleVersion", 'Private'))
+              $funcNames = @(); Test-Path -Path ([string[]]($Publc_Dir, $Privt_Dir)) -PathType Container -ErrorAction Stop
+              $Publc_Dir.GetFiles("*", [System.IO.SearchOption]::AllDirectories) + $Privt_Dir.GetFiles("*", [System.IO.SearchOption]::AllDirectories) | Where-Object { $_.Extension -eq '.ps1' } | ForEach-Object { $funcNames += $_.BaseName }
+              $($funcNames | Group-Object | Where-Object { $_.Count -gt 1 }).Count | Should -BeLessThan 1
+            }
+          }
+        }
+        Remove-Module -Name $ModuleName -Force
+      }
+      FeatureTest           = {
+        Describe "Feature tests: PsCraft" {
+          Context "Feature 1" {
+            It "Does something expected" {
+              # Write tests to verify the behavior of a specific feature.
+              # For instance, if you have a feature to change the console background color,
+              # you could simulate the invocation of the related function and check if the color changes as expected.
+            }
+          }
+          Context "Feature 2" {
+            It "Performs another expected action" {
+              # Write tests for another feature.
+            }
+          }
+          # TODO: Add more contexts and tests to cover various features and functionalities.
+        }
+      }
+      ScriptAnalyzer        = {
+        @{
+          IncludeDefaultRules = $true
+          ExcludeRules        = @(
+            'PSAvoidUsingWriteHost',
+            'PSReviewUnusedParameter',
+            'PSUseSingularNouns'
+          )
+
+          Rules               = @{
+            PSPlaceOpenBrace           = @{
+              Enable             = $true
+              OnSameLine         = $true
+              NewLineAfter       = $true
+              IgnoreOneLineBlock = $true
+            }
+
+            PSPlaceCloseBrace          = @{
+              Enable             = $true
+              NewLineAfter       = $false
+              IgnoreOneLineBlock = $true
+              NoEmptyLineBefore  = $true
+            }
+
+            PSUseConsistentIndentation = @{
+              Enable              = $true
+              Kind                = 'space'
+              PipelineIndentation = 'IncreaseIndentationForFirstPipeline'
+              IndentationSize     = 2
+            }
+
+            PSUseConsistentWhitespace  = @{
+              Enable                                  = $true
+              CheckInnerBrace                         = $true
+              CheckOpenBrace                          = $true
+              CheckOpenParen                          = $true
+              CheckOperator                           = $false
+              CheckPipe                               = $true
+              CheckPipeForRedundantWhitespace         = $false
+              CheckSeparator                          = $true
+              CheckParameter                          = $false
+              IgnoreAssignmentOperatorInsideHashTable = $true
+            }
+
+            PSAlignAssignmentStatement = @{
+              Enable         = $true
+              CheckHashtable = $true
+            }
+
+            PSUseCorrectCasing         = @{
+              Enable = $true
+            }
+          }
+        }
+      }
+      IntegrationTest       = {
+        # verify the interactions and behavior of the module's components when they are integrated together.
+        Describe "Integration tests: PsCraft" {
+          Context "Functionality Integration" {
+            It "Performs expected action" {
+              # Here you can write tests to simulate the usage of your functions and validate their behavior.
+              # For instance, if your module provides cmdlets to customize the command-line environment,
+              # you could simulate the invocation of those cmdlets and check if the environment is modified as expected.
+            }
+          }
+          # TODO: Add more contexts and tests as needed to cover various integration scenarios.
+        }
+      }
+      Tags                  = [string[]]("PowerShell", [Environment]::UserName)
+      #CompatiblePSEditions = $($Ps_Ed = (Get-Variable 'PSVersionTable').Value.PSEdition; if ([string]::IsNullOrWhiteSpace($Ps_Ed)) { 'Desktop' } else { $Ps_Ed }) # skiped on purpose. <<< https://blog.netnerds.net/2023/03/dont-waste-your-time-with-core-versions
+    }
+    $_PSVersion = $propsHashtable["PowerShellVersion"]; [ValidateScript({ $_ -ge [version]"2.0" -and $_ -le [version]"7.0" })]$_PSVersion = $_PSVersion
+    return [PsModule]::CreateModuleData($propsHashtable, $Files)
+  }
+  static [Collection[PsModuleData]] CreateModuleData([hashtable]$hashtable, [ModuleFile[]]$Files) {
+    $coll = [Collection[PsModuleData]]::new()
+    $arry = @(); $hashtable.Keys.ForEach({ $arry += [PsModuleData]::new($_, $hashtable[$_], $Files) })
+    $arry.ForEach({ [void]$coll.Add($_) })
+    return $coll
+  }
+  static hidden [PsModuleData] CreateModuleData([String]$Key, $Value, [ref]$o) {
+    return [PsModule]::CreateModuleData($Key, $Value, $Value.GetType(), @(), $o)
+  }
+  static hidden [PsModuleData] CreateModuleData([String]$Key, $Value, [Type]$Type, [ModuleFile[]]$Files, [ref]$o) {
+    $o.Value.Key = $Key; $o.Value.Type = $Type
+    $o.Value.Value = $Value -as $Type
+    if ($Files.Name.Contains($Key)) {
+      $o.Value.Attributes += "FileContent"
+    }
+    if ($Key -in [PsModuleData]::configuration_values) {
+      # https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/new-modulemanifest#example-5-getting-module-information
+      $o.Value.Attributes += "ManifestKey"
+    }
+    return $o.Value
+  }
   [void] Save() {
     $this.Save([SaveOptions]::None)
   }
@@ -1231,42 +1678,26 @@ class PsModule {
       Write-Error "Name cannot be empty"
       return
     }
+    $Force = $Options -eq [SaveOptions]::None
     # Todo: Make good use of all save Options,not just Force/OvewriteStuff/none
     Write-Host "[+] Create Module Directories ..." -ForegroundColor Green
     $this.Folders | ForEach-Object {
-      $nF = @(); $p = $_; while (!$p.Exists) { $nF += $p; $p = $p.Parent }
-      [Array]::Reverse($nF); foreach ($d in $nF) {
-        New-Item -Path $d.FullName -ItemType Directory -Force:$($Options -eq [SaveOptions]::None)
-        Write-Verbose "Created Directory '$($d.FullName)'"
+      $nF = @(); $p = $_.value; While (!$p.Exists) { $nF += $p; $p = $p.Parent }
+      [Array]::Reverse($nF); ForEach ($d in $nF) {
+        New-Item -Path $d.FullName -ItemType Directory -Force:$Force
+        if (!$what_if) { Write-Verbose "Created Directory '$($d.FullName)'" }
       }
     }
-    if ($this.CompatiblePSEditions.count -eq 0) {
-      $Ps_Ed = (Get-Variable 'PSVersionTable').Value.PSEdition
-      $this.CompatiblePSEditions += $(if ([string]::IsNullOrWhiteSpace($Ps_Ed)) { 'Desktop' } else { $Ps_Ed })
-    }
-    $newModuleManifestParams = @{
-      Guid                  = $this.Data.Guid
-      Tags                  = $this.Data.Tags
-      Path                  = $this.Files.Manifest.FullName
-      Author                = $this.Data.Author
-      Copyright             = $this.Data.Copyright
-      RootModule            = $this.Name + '.psm1'
-      ClrVersion            = $this.Data.ClrVersion
-      CompanyName           = $this.Data.CompanyName
-      Description           = $this.Data.Description
-      ModuleVersion         = $this.Data.ModuleVersion
-      PowershellVersion     = $this.Data.PSVersion
-      #CompatiblePSEditions = $this.CompatiblePSEditions ?: https://blog.netnerds.net/2023/03/dont-waste-your-time-with-core-versions/
-      ProcessorArchitecture = $this.ProcessorArchitecture
-    }
-    New-ModuleManifest @newModuleManifestParams
-    $FileContents = ($this.Data | Get-Member -Type Properties -Force).Where({ $_.Name -notin ('pstypenames') }) | Select-Object @{l = 'Name'; e = { $_.Name } }, @{l = 'Value'; e = { $this.Data.($_.Name) } }
+    $KH = @{}; $this.Data.Where({ $_.Attributes -notcontains "ManifestKey" -and $_.Attributes -contains "FileContent" }).ForEach({ $KH[$_.Key] = $_.Value })
+    $MF = $this.Files | Select-Object Name, @{l = "Path"; e = { $_.Value } }, @{l = "Content"; e = { $KH[$_.Name] } }
     Write-Host "[+] Create Module Files ..." -ForegroundColor Green
-    $FileContents.ForEach({
-        New-Item -Path $this.files.$_.FullName -ItemType File -Value $_.Value -Force | Out-Null
-        Write-Verbose "Created $_"
-      }
-    )
+    $MF.ForEach({ New-Item -Path $_.Path -ItemType File -Value $_.Content -Force:$Force | Out-Null; if (!$what_if) { Write-Verbose "Created $($_.Name)" } })
+    $PM = @{}; $this.Data.Where({ $_.Attributes -contains "ManifestKey" }).ForEach({ $PM.Add($_.Key, $_.Value) })
+    Write-Host "[+] Create Module Manifest ..." -ForegroundColor Green
+    New-ModuleManifest @PM
+  }
+  [void] FormatCode() {
+    [ModuleManager]::FormatCode($this)
   }
   [void] Delete() {
     Get-Module $this.Name | Remove-Module -Force -ErrorAction SilentlyContinue
@@ -1277,7 +1708,7 @@ class PsModule {
     # .then run tests
   }
   [void] Publish() {
-    $this.Publish('LocalRepo', [IO.Path]::GetDirectoryName($Pwd))
+    $this.Publish('LocalRepo', [Path]::GetDirectoryName($Pwd))
   }
   [void] Publish($repoName, $repoPath) {
     if (Test-Path -Type Container -Path $repoPath -ErrorAction SilentlyContinue) {
@@ -1428,413 +1859,6 @@ class AliasVisitor : System.Management.Automation.Language.AstVisitor {
     $this.Value = $null
     $this.Scope = $null
     return $this
-  }
-}
-class PsModuleData {
-  [string] $Author
-  [String] $CompanyName = [ModuleManager]::GetAuthorEmail().Split('@')[0];
-  [String] $Description = "A longer description of the Module, its purpose, common use cases, etc.";
-  [Processorarchitecture] $ProcessorArchitecture = 'None';
-  [ValidateNotNullOrEmpty()][string]$ModuleVersion
-  [ValidateNotNullOrWhiteSpace()][string]$ModuleName
-  [ValidateRange(2.0, 7.0)][double] $PSVersion = '3.0';
-  [String] $ClrVersion = '2.0.50727';
-  [PSEdition[]] $CompatiblePSEditions;
-  [ValidateNotNullOrEmpty()] [Guid]$Guid;
-  hidden [ValidateNotNullOrEmpty()][string]$License
-  hidden [ValidateNotNullOrEmpty()][string]$ReadmeMd
-  hidden [ValidateNotNullOrEmpty()][scriptblock]$Builder
-  hidden [ValidateNotNullOrEmpty()][scriptblock]$Localdata
-  hidden [ValidateNotNullOrEmpty()][scriptblock]$rootLoader
-  hidden [ValidateNotNullOrEmpty()][scriptblock]$ModuleTest
-  hidden [ValidateNotNullOrEmpty()][scriptblock]$FeatureTest
-  hidden [ValidateNotNullOrEmpty()][scriptblock]$ScriptAnalyzer
-  hidden [ValidateNotNullOrEmpty()][scriptblock]$IntegrationTest
-  static hidden [string]$LICENSE_TXT
-  hidden [string]$ReleaseNotes
-  [string] $Copyright
-
-  PsModuleData() {
-    $this.rootLoader = {
-      #!/usr/bin/env pwsh
-      #region    Classes
-      #endregion Classes
-      $Private = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Private')) -Filter "*.ps1" -ErrorAction SilentlyContinue
-      $Public = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Public')) -Filter "*.ps1" -ErrorAction SilentlyContinue
-      # Load dependencies
-      $PrivateModules = [string[]](Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Private')) -ErrorAction SilentlyContinue | Where-Object { $_.PSIsContainer } | Select-Object -ExpandProperty FullName)
-      if ($PrivateModules.Count -gt 0) {
-        foreach ($Module in $PrivateModules) {
-          Try {
-            Import-Module $Module -ErrorAction Stop
-          } Catch {
-            Write-Error "Failed to import module $Module : $_"
-          }
-        }
-      }
-      # Dot source the files
-      foreach ($Import in ($Public, $Private)) {
-        Try {
-          . $Import.fullname
-        } Catch {
-          Write-Warning "Failed to import function $($Import.BaseName): $_"
-          $host.UI.WriteErrorLine($_)
-        }
-      }
-      # Export Public Functions
-      $Param = @{
-        Function = $Public.BaseName
-        Variable = '*'
-        Cmdlet   = '*'
-        Alias    = '*'
-      }
-      Export-ModuleMember @Param -Verbose
-    }
-    $this.Builder = {
-      # .SYNOPSIS
-      #   <ModuleName> build script
-      # .DESCRIPTION
-      #   A build script that uses another buider module (PsCraft) 🗿
-      # .LINK
-      #   https://github.com/<userName>/<ModuleName>/blob/main/build.ps1
-      # .NOTES
-      #   Author   : <AuthorName>
-      #   Copyright: © <Year> <UserName> <<AuthorEmail>>. All rights reserved.
-      #   License  : MIT
-      # .EXAMPLE
-      #   Import-Module PsCraft; Build-Module -Task Test -Verbose
-      [cmdletbinding(DefaultParameterSetName = 'task')]
-      param(
-        [parameter(Position = 0, ParameterSetName = 'task')]
-        [ValidateScript({
-            $task_seq = [string[]]$_; $IsValid = $true
-            $Tasks = @('Init', 'Clean', 'Compile', 'Import', 'Test', 'Deploy')
-            foreach ($name in $task_seq) {
-              $IsValid = $IsValid -and ($name -in $Tasks)
-            }
-            if ($IsValid) {
-              return $true
-            } else {
-              throw [System.ArgumentException]::new('Task', "ValidSet: $($Tasks -join ', ').")
-            }
-          }
-        )][ValidateNotNullOrEmpty()]
-        [string[]]$Task = @('Init', 'Clean', 'Compile', 'Import'),
-
-        [parameter(ParameterSetName = 'help')]
-        [Alias('-Help')]
-        [switch]$Help
-      )
-
-      Import-Module PsCraft
-      Build-Module -Task $Task
-    }
-    $this.ModuleTest = {
-      $script:ModuleName = (Get-Item "$PSScriptRoot/..").Name
-      $script:ModulePath = Resolve-Path "$PSScriptRoot/../BuildOutput/$ModuleName" | Get-Item
-      $script:moduleVersion = ((Get-ChildItem $ModulePath).Where({ $_.Name -as 'version' -is 'version' }).Name -as 'version[]' | Sort-Object -Descending)[0].ToString()
-
-      Write-Host "[+] Testing the latest built module:" -ForegroundColor Green
-      Write-Host "      ModuleName    $ModuleName"
-      Write-Host "      ModulePath    $ModulePath"
-      Write-Host "      Version       $moduleVersion`n"
-
-      Get-Module -Name $ModuleName | Remove-Module # Make sure no versions of the module are loaded
-
-      Write-Host "[+] Reading module information ..." -ForegroundColor Green
-      $script:ModuleInformation = Import-Module -Name "$ModulePath" -PassThru
-      $script:ModuleInformation | Format-List
-
-      Write-Host "[+] Get all functions present in the Manifest ..." -ForegroundColor Green
-      $script:ExportedFunctions = $ModuleInformation.ExportedFunctions.Values.Name
-      Write-Host "      ExportedFunctions: " -ForegroundColor DarkGray -NoNewline
-      Write-Host $($ExportedFunctions -join ', ')
-      $script:PS1Functions = Get-ChildItem -Path "$ModulePath/$moduleVersion/Public/*.ps1"
-
-      Describe "Module tests for $($([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')))" {
-        Context " Confirm valid Manifest file" {
-          It "Should contain RootModule" {
-            ![string]::IsNullOrWhiteSpace($ModuleInformation.RootModule) | Should -Be $true
-          }
-
-          It "Should contain ModuleVersion" {
-            ![string]::IsNullOrWhiteSpace($ModuleInformation.Version) | Should -Be $true
-          }
-
-          It "Should contain GUID" {
-            ![string]::IsNullOrWhiteSpace($ModuleInformation.Guid) | Should -Be $true
-          }
-
-          It "Should contain Author" {
-            ![string]::IsNullOrWhiteSpace($ModuleInformation.Author) | Should -Be $true
-          }
-
-          It "Should contain Description" {
-            ![string]::IsNullOrWhiteSpace($ModuleInformation.Description) | Should -Be $true
-          }
-        }
-        Context " Should export all public functions " {
-          It "Compare the number of Function Exported and the PS1 files found in the public folder" {
-            $status = $ExportedFunctions.Count -eq $PS1Functions.Count
-            $status | Should -Be $true
-          }
-
-          It "The number of missing functions should be 0 " {
-            If ($ExportedFunctions.count -ne $PS1Functions.count) {
-              $Compare = Compare-Object -ReferenceObject $ExportedFunctions -DifferenceObject $PS1Functions.Basename
-              $($Compare.InputObject -Join '').Trim() | Should -BeNullOrEmpty
-            }
-          }
-        }
-        Context " Confirm files are valid Powershell syntax " {
-          $_scripts = $(Get-Item -Path "$ModulePath/$moduleVersion").GetFiles(
-            "*", [System.IO.SearchOption]::AllDirectories
-          ).Where({ $_.Extension -in ('.ps1', '.psd1', '.psm1') })
-          $testCase = $_scripts | ForEach-Object { @{ file = $_ } }
-          It "ie: each Script/Ps1file should have valid Powershell sysntax" -TestCases $testCase {
-            param($file) $contents = Get-Content -Path $file.fullname -ErrorAction Stop
-            $errors = $null; [void][System.Management.Automation.PSParser]::Tokenize($contents, [ref]$errors)
-            $errors.Count | Should -Be 0
-          }
-        }
-        Context " Confirm there are no duplicate function names in private and public folders" {
-          It ' Should have no duplicate functions' {
-            $Publc_Dir = Get-Item -Path ([IO.Path]::Combine("$ModulePath/$moduleVersion", 'Public'))
-            $Privt_Dir = Get-Item -Path ([IO.Path]::Combine("$ModulePath/$moduleVersion", 'Private'))
-            $funcNames = @(); Test-Path -Path ([string[]]($Publc_Dir, $Privt_Dir)) -PathType Container -ErrorAction Stop
-            $Publc_Dir.GetFiles("*", [System.IO.SearchOption]::AllDirectories) + $Privt_Dir.GetFiles("*", [System.IO.SearchOption]::AllDirectories) | Where-Object { $_.Extension -eq '.ps1' } | ForEach-Object { $funcNames += $_.BaseName }
-            $($funcNames | Group-Object | Where-Object { $_.Count -gt 1 }).Count | Should -BeLessThan 1
-          }
-        }
-      }
-      Remove-Module -Name $ModuleName -Force
-    }
-    $this.FeatureTest = {
-      Describe "Feature tests: PsCraft" {
-        Context "Feature 1" {
-          It "Does something expected" {
-            # Write tests to verify the behavior of a specific feature.
-            # For instance, if you have a feature to change the console background color,
-            # you could simulate the invocation of the related function and check if the color changes as expected.
-          }
-        }
-        Context "Feature 2" {
-          It "Performs another expected action" {
-            # Write tests for another feature.
-          }
-        }
-        # TODO: Add more contexts and tests to cover various features and functionalities.
-      }
-    }
-    $this.IntegrationTest = {
-      # verify the interactions and behavior of the module's components when they are integrated together.
-      Describe "Integration tests: PsCraft" {
-        Context "Functionality Integration" {
-          It "Performs expected action" {
-            # Here you can write tests to simulate the usage of your functions and validate their behavior.
-            # For instance, if your module provides cmdlets to customize the command-line environment,
-            # you could simulate the invocation of those cmdlets and check if the environment is modified as expected.
-          }
-        }
-        # TODO: Add more contexts and tests as needed to cover various integration scenarios.
-      }
-    }
-    $this.Localdata = {
-      @{
-        ModuleName    = '<ModuleName>'
-        ModuleVersion = [version]'<ModuleVersion>'
-        ReleaseNotes  = '<ReleaseNotes>'
-      }
-    }
-    $this.ScriptAnalyzer = {
-      @{
-        IncludeDefaultRules = $true
-        ExcludeRules        = @(
-          'PSAvoidUsingWriteHost',
-          'PSReviewUnusedParameter',
-          'PSUseSingularNouns'
-        )
-
-        Rules               = @{
-          PSPlaceOpenBrace           = @{
-            Enable             = $true
-            OnSameLine         = $true
-            NewLineAfter       = $true
-            IgnoreOneLineBlock = $true
-          }
-
-          PSPlaceCloseBrace          = @{
-            Enable             = $true
-            NewLineAfter       = $false
-            IgnoreOneLineBlock = $true
-            NoEmptyLineBefore  = $true
-          }
-
-          PSUseConsistentIndentation = @{
-            Enable              = $true
-            Kind                = 'space'
-            PipelineIndentation = 'IncreaseIndentationForFirstPipeline'
-            IndentationSize     = 2
-          }
-
-          PSUseConsistentWhitespace  = @{
-            Enable                                  = $true
-            CheckInnerBrace                         = $true
-            CheckOpenBrace                          = $true
-            CheckOpenParen                          = $true
-            CheckOperator                           = $false
-            CheckPipe                               = $true
-            CheckPipeForRedundantWhitespace         = $false
-            CheckSeparator                          = $true
-            CheckParameter                          = $false
-            IgnoreAssignmentOperatorInsideHashTable = $true
-          }
-
-          PSAlignAssignmentStatement = @{
-            Enable         = $true
-            CheckHashtable = $true
-          }
-
-          PSUseCorrectCasing         = @{
-            Enable = $true
-          }
-        }
-      }
-    }
-    # TODO: ask ai to generate readme
-    $this.ReadmeMd = [string][StringBuilder]::new('
-    # [<ModuleName>](https://www.powershellgallery.com/packages/<ModuleName>)
-
-    🔥 Blazingly fast PowerShell thingy that stonks up your terminal game.
-
-    ## Usage
-
-    ```PowerShell
-    Install-Module <ModuleName>
-    ```
-
-    then
-
-    ```PowerShell
-    Import-Module <ModuleName>
-    # do stuff here.
-    ```
-
-    ## License
-
-    This project is licensed under the [WTFPL License](LICENSE).
-    '
-    )
-    $this.License = [ModuleManager]::GetLicenseText()
-    # TODO: ask ai to generate release notes
-    $this.ReleaseNotes = [string][StringBuilder]::new('
-    # Release Notes
-
-    ## Version _<ModuleVersion>_
-
-    ### New Features
-
-    - Added feature abc.
-    - Added feature defg.
-
-    ### Installation
-
-    ```PowerShell
-    Install-Module <ModuleName>
-    ```
-    Thats it. If that fails, try running manual installation:
-
-    1. Download the
-      [ModuleZip](https://github.com/<UserName>/<ModuleName>/releases/download/v<ModuleVersion>/<ModuleName>.zip)
-      file attached to the release.
-    2. **If on Windows**: Right-click the downloaded zip, select Properties, then
-      unblock the file.
-      > _This is to prevent having to unblock each file individually after
-      > unzipping._
-    3. Unzip the archive.
-    4. (Optional) Place the module folder somewhere in your `PsModulePath`.
-      > _You can view the paths listed by running the environment variable
-      > `$env:PsModulePath`_
-    5. Import the module, using the full path to the PSD1 file in place of
-      `<ModuleName>` if the unzipped module folder is not in your `PsModulePath`:
-
-      ```powershell
-      # In Env:PsModulePath
-      Import-Module <ModuleName>
-
-      # Otherwise, provide the path to the manifest:
-      Import-Module -Path Path/to/<ModuleName>/<ModuleVersion>/<ModuleName>.psd1
-      ```
-    '
-    )
-    # $o.Value.PsObject.properties.Name.ForEach({
-    # $str = $(([PsModule]::Data.$_).ToString().Split("`n") -as [string[]]).foreach({
-    #         if ($_.Length -ge 12) { $_.Substring(12) }
-    #     }
-    # )
-  }
-  static [PsModuleData] Create([string]$Name) {
-    $o = [PsModuleData]::new();
-    $o.set_props([PSCustomObject]@{ Name = $Name; Version = [version]::new(0, 1, 0) })
-    return $o
-  }
-  static [PsModuleData] Create([string]$Name, [version]$Version) {
-    $o = [PsModuleData]::new();
-    $o.set_props([PSCustomObject]@{ Name = $Name; Version = $Version })
-    return $o
-  }
-  hidden [void] set_props([PSCustomObject]$props) {
-    # <placeholder> values
-    [hashtable]$phv = @{
-      Year          = [datetime]::Now.Year
-      UserName      = [Environment]::UserName
-      ModuleName    = $props.Name ? $props.Name : ''
-      AuthorName    = [ModuleManager]::GetAuthorName()
-      AuthorEmail   = [ModuleManager]::GetAuthorEmail()
-      ModuleVersion = $props.Version ? $props.Version : [version]::new(0, 1, 0)
-    }
-    $this.ModuleName = $phv['ModuleName']
-    $this.ModuleVersion = $phv['ModuleVersion']
-    $this.Guid = [guid]::NewGuid()
-    $this.Author = [ModuleManager]::GetAuthorName()
-    $this.Copyright = "Copyright {0} {1} {2}. All rights reserved." -f [string][char]169, [datetime]::Now.Year, $this.Author;
-    $this.ClrVersion = [string]::Join('.', (Get-Variable 'PSVersionTable' -ValueOnly).SerializationVersion.ToString().split('.')[0..2])
-    $this.PSVersion = [string]::Join('', (Get-Variable 'PSVersionTable').Value.PSVersion.Major.ToString(), '.0')
-    # TODO: add &use these also
-    # [version] hidden $DotNetFrameworkVersion;
-    # [version] hidden $PowerShellHostVersion;
-    # [string[]] hidden $DscResourcesToExport;
-    # [string] hidden $DefaultCommandPrefix;
-    # [string[]] hidden $RequiredAssemblies;
-    # [string[]] hidden $FunctionsToExport;
-    # [string[]] hidden $VariablesToExport;
-    # [string[]] hidden $FormatsToProcess;
-    # [string[]] hidden $ScriptsToProcess;
-    # [String] hidden $PowerShellHostName;
-    # [string[]] hidden $AliasesToExport;
-    # [string[]] hidden $CmdletsToExport;
-    # [Object[]] hidden $RequiredModules;
-    # [string[]] hidden $TypesToProcess;
-    # [Object[]] hidden $NestedModules;
-    # [Object[]] hidden $ModuleList;
-    # [string] hidden $ReleaseNotes;
-    # [string] hidden $HelpInfoUri;
-    # [Object] hidden $PrivateData;
-    # [string[]] hidden $FileList;
-    # [uri] hidden $ProjectUri;
-    # [uri] hidden $LicenseUri;
-    # [uri] hidden $IconUri;
-    $props = ($this | Get-Member -Type Properties -Force).Where({ $_.Name -notin ('pstypenames') }) | Select-Object @{l = 'Name'; e = { $_.Name } }, @{l = 'TypeName'; e = { $_.Definition.Split(" ")[0] } }
-    foreach ($prop in $props) {
-      $n = $prop.Name
-      $t = $prop.TypeName -as [type]
-      if ($null -eq $t) { Write-Warning "Unable to find type [$n]"; continue }
-      switch ($t.Name) {
-        'ScriptBlock' { $phv.Keys.ForEach({ if ($null -ne $this.$n) { $sString = $this.$n.ToString().Replace("<$_>", $phv.$_); $this.$n = [scriptblock]::Create($sString) } }); break }
-        'String' { $phv.Keys.ForEach({ if ($null -ne $this.$n) { $this.$n = $this.$n.Replace("<$_>", $phv.$_) } }); break }
-        Default { continue }
-      }
-    }
   }
 }
 #endregion Classes
