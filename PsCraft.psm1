@@ -92,12 +92,12 @@ $script:localizedData = if ($null -ne (Get-Command Get-LocalizedData -ErrorActio
 
 # Types that will be available to users when they import the module.
 $typestoExport = @(
+  [ModuleManager],
   [LocalPsModule],
-  [PsModuleData],
   [PsModule],
   [PsCraft]
 )
-$TypeAcceleratorsClass = [psobject].Assembly.GetType('System.Management.Automation.TypeAccelerators')
+$TypeAcceleratorsClass = [PsObject].Assembly.GetType('System.Management.Automation.TypeAccelerators')
 foreach ($Type in $typestoExport) {
   if ($Type.FullName -in $TypeAcceleratorsClass::Get.Keys) {
     $Message = @(
