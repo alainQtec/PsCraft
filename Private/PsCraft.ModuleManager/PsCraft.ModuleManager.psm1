@@ -8,6 +8,7 @@ using namespace System.Management.Automation
 using namespace System.Collections.ObjectModel
 using namespace System.Runtime.InteropServices
 using namespace System.Management.Automation.Language
+Using module PSScriptAnalyzer
 
 enum SaveOptions {
   AcceptAllChangesAfterSave # After changes are saved, we resets change tracking.
@@ -538,41 +539,48 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     }
     return $RepoPath
   }
-  [object[]] FormatCode() {
-    return [ModuleManager]::FormatCode($this.RootPath)
-  }
-  static [object[]] FormatCode([PsModule]$module) {
+  static [PSCustomObject] FormatCode([PsModule]$module) {
     [int]$errorCount = 0
     [int]$maxRetries = 5
-    $results = @()
-    if (!$module.Path.Exists) { return $results }
-    $filesToCheck = Get-ChildItem -Path $module.Path -Directory | Where-Object {
-      $_.Name -ne "dist" } | ForEach-Object {
-      Get-ChildItem -Path $_.FullName -Include "*.ps1", "*.psm1", "*.md" -Recurse
+    $results = [PSCustomObject]@{
+      Analysis = [List[PSCustomObject]]@()
+      Errors   = [List[PSCustomObject]]@()
     }
-    $ScriptAnalyzer = $module.Files.Where({ $_.Name -eq "ScriptAnalyzer" })[0].Value.FullName
-    ForEach ($fileInfo in $filesToCheck) {
+    if (![Directory]::Exists($module.Path.FullName)) {
+      Write-Warning "Please save the module first."
+      return $results
+    }
+    $filesToCheck = $module.Files.Value.Where({ $_.Extension -in ('.md', '.ps1', '.psd1', '.psm1') })
+    $frmtSettings = $module.Files.Where({ $_.Name -eq "ScriptAnalyzer" })[0].Value.FullName
+    if ($filesToCheck.Count -eq 0) {
+      Write-Host "No files to format found in the module!" -ForegroundColor Green
+      return $results
+    }
+    if (!$frmtSettings) {
+      Write-Warning "ScriptAnalyzer Settings not found in the module!"
+      return $results
+    }
+    ForEach ($file in $filesToCheck) {
       for ($i = 0; $i -lt $maxRetries; $i++) {
         try {
-          $analyzerResults = Invoke-ScriptAnalyzer -Path $FileInfo.FullName -Settings $ScriptAnalyzer -ErrorAction Stop
-          if ($null -ne $analyzerResults) {
-            $errorCount++
-            $results += $analyzerResults | Format-Table -AutoSize
-          }
+          $_rcontent = Get-Content -Path $file.FullName -Raw
+          $formatted = Invoke-Formatter -ScriptDefinition $_rcontent -Settings $frmtSettings -Verbose:$false
+          $formatted | Set-Content -Path $file.FullName -NoNewline
+          $_analysis = Invoke-ScriptAnalyzer -Path $file.FullName -Settings $frmtSettings -ErrorAction Stop
+          if ($null -ne $_analysis) { $errorCount++; [void]$results.Analysis.Add(($_analysis | Select-Object ScriptName, Line, Message)) }
           break
         } catch {
-          Write-Warning "Invoke-ScriptAnalyer failed on $($fileInfo.FullName). Error:"
-          $_.Exception | Format-List | Out-Host
-          Write-Warning "Retrying in 5 seconds."
-          Start-Sleep -Seconds 5
+          Write-Warning "Invoke-ScriptAnalyzer failed on $($file.FullName). Error:"
+          $results.Errors += [PSCustomObject]@{
+            File      = $File.FullName
+            Exception = $_.Exception | Format-List * -Force
+          }
+          Write-Warning "Retrying in 1 seconds."
+          Start-Sleep -Seconds 1
         }
       }
-      if ($i -eq $maxRetries) {
-        throw "Invoke-ScriptAnalyzer failed $maxRetries times. Giving up."
-      }
-      if ($errorCount -gt 0) {
-        throw "Failed to match formatting requirements"
-      }
+      if ($i -eq $maxRetries) { Write-Warning "Invoke-ScriptAnalyzer failed $maxRetries times. Moving on." }
+      if ($errorCount -gt 0) { Write-Warning "Failed to match formatting requirements" }
     }
     return $results
   }
@@ -956,6 +964,28 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     [ValidateNotNullOrWhiteSpace()][string]$Path = $Path
     return [ModuleManager]::Read_Module_Manifest($Path, $null)
   }
+  static [ParseResult] ParseCode($Code) {
+    # Parses the given code and returns an object with the AST, Tokens and ParseErrors
+    Write-Debug "    ENTER: ConvertToAst $Code"
+    $ParseErrors = $null
+    $Tokens = $null
+    if ($Code | Test-Path -ErrorAction SilentlyContinue) {
+      Write-Debug "      Parse Code as Path"
+      $AST = [System.Management.Automation.Language.Parser]::ParseFile(($Code | Convert-Path), [ref]$Tokens, [ref]$ParseErrors)
+    } elseif ($Code -is [System.Management.Automation.FunctionInfo]) {
+      Write-Debug "      Parse Code as Function"
+      $String = "function $($Code.Name) {`n$($Code.Definition)`n}"
+      $AST = [System.Management.Automation.Language.Parser]::ParseInput($String, [ref]$Tokens, [ref]$ParseErrors)
+    } else {
+      Write-Debug "      Parse Code as String"
+      $AST = [System.Management.Automation.Language.Parser]::ParseInput([String]$Code, [ref]$Tokens, [ref]$ParseErrors)
+    }
+    return [ParseResult]::new($ParseErrors, $Tokens, $AST)
+  }
+  static [HashSet[String]] GetCommandAlias([System.Management.Automation.Language.Ast]$Ast) {
+    $Visitor = [AliasVisitor]::new(); $Ast.Visit($Visitor)
+    return $Visitor.Aliases
+  }
   static [PsObject] Read_Module_Manifest([string]$Path, [string]$PropertyName) {
     if ([string]::IsNullOrWhiteSpace($PropertyName)) {
       $null = Get-Item -Path $Path -ErrorAction Stop
@@ -1008,21 +1038,13 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     # $KeyValue.SafeGetValue()
     return $KeyValue
   }
-  static [void] validatePath([string]$path) {
+  static [void] ValidatePath([string]$path) {
     $InvalidPathChars = [Path]::GetInvalidPathChars()
     $InvalidCharsRegex = "[{0}]" -f [regex]::Escape($InvalidPathChars)
     if ($Path -match $InvalidCharsRegex) {
       throw [InvalidEnumArgumentException]::new("The path string contains invalid characters.")
     }
   }
-  # static [string] GetLicenseText() {
-  #   if (![PsModu_leData]::LICENSE_TXT) {
-  #     # $mit = (Invoke-WebRequest https://opensource.apple.com/source/dovecot/dovecot-293/dovecot/COPYING.MIT -Verbose:$false -SkipHttpErrorCheck).Content
-  #     [PsModu_leData]::LICENSE_TXT = [string](Invoke-WebRequest http://sam.zoy.org/wtfpl/COPYING -Verbose:$false -SkipHttpErrorCheck).Content
-  #     if (![string]::IsNullOrWhiteSpace([PsModu_leData]::LICENSE_TXT)) { [PsModu_leData]::LICENSE_TXT = [PsModu_leData]::LICENSE_TXT.Replace('2004 Sam Hocevar <sam@hocevar.net>', "<Year> <AuthorName> <AuthorEmail>") }
-  #   }
-  #   return [PsModu_leData]::LICENSE_TXT
-  # }
   static [version] GetModuleVersion([string]$Psd1Path) {
     $data = [ModuleManager]::Read_Module_Manifest($Psd1Path)
     $_ver = $data.ModuleVersion; if ($null -eq $_ver) { $_ver = [version][IO.FileInfo]::New($Psd1Path).Directory.Name }
@@ -1065,8 +1087,8 @@ class ModuleFolder {
     $this.value = $value
   }
 }
-
 class PsModuleData {
+  static hidden [string] $LICENSE_TXT
   static hidden [string[]] $configuration_values = $(Get-Module -Verbose:$false)[0].PsObject.Properties.Name + 'ModuleVersion'
   [ValidateNotNullOrWhiteSpace()][String] $Key
   [ValidateNotNullOrEmpty()][Type] $Type
@@ -1091,8 +1113,35 @@ class PsModuleData {
   PsModuleData([String]$Key, $Value, [ModuleFile[]]$files) {
     [void][PsModule]::CreateModuleData($Key, $Value, $Value.GetType(), $files, [ref]$this)
   }
+  [void] FormatValue() {
+    if ($this.Type.Name -in ('String', 'ScriptBlock')) {
+      try {
+        # Write-Host "FORMATTING: << $($this.Key) : $($this.Type.Name)" -f Blue -NoNewline
+        $this.Value = Invoke-Formatter -ScriptDefinition $this.Value.ToString() -Verbose:$false
+      } catch {
+        # Write-Host " Attempt to format the file line by line. " -f Magenta -nonewline
+        $content = $this.Value.ToString()
+        $formattedLines = @()
+        foreach ($line in $content) {
+          try {
+            $formattedLine = Invoke-Formatter -ScriptDefinition $line -Verbose:$false
+            $formattedLines += $formattedLine
+          } catch {
+            # If formatting fails, keep the original line
+            $formattedLines += $line
+          }
+        }
+        $_value = [string]::Join([Environment]::NewLine, $formattedLines)
+        if ($this.Type.Name -eq 'String') {
+          $this.Value = $_value
+        } elseif ($this.Type.Name -eq 'ScriptBlock') {
+          $this.Value = [scriptblock]::Create("$_value")
+        }
+      }
+      # Write-Host " done $($this.Key) >>" -f Green
+    }
+  }
 }
-
 class LocalPsModule {
   [ValidateNotNullOrEmpty()][FileInfo]$Psd1
   [ValidateNotNullOrEmpty()][version]$version
@@ -1145,17 +1194,6 @@ class LocalPsModule {
   }
   [void] Delete() {
     Remove-Item $this.Path -Recurse -Force -ErrorAction Ignore
-  }
-}
-class ParseResult {
-  [Token[]]$Tokens
-  [ScriptBlockAst]$AST
-  [ParseError[]]$ParseErrors
-
-  ParseResult([ParseError[]]$Errors, [Token[]]$Tokens, [ScriptBlockAst]$AST) {
-    $this.ParseErrors = $Errors
-    $this.Tokens = $Tokens
-    $this.AST = $AST
   }
 }
 class PsModule {
@@ -1257,13 +1295,14 @@ class PsModule {
   }
   [void] CreateModuleData() {
     $this.Data = [PsModule]::CreateModuleData([string]$this.Name, [string]$this.Path, [ModuleFile[]]$this.Files);
+    $this.Data.ForEach({ $_.FormatValue() })
   }
   static [Collection[PsModuleData]] CreateModuleData([string]$Name, [string]$Path, [List[ModuleFile]]$Files) {
-    # static [PsModu_leData] Create([string]$Name, [DirectoryInfo]$Psdroot) {
-    #   return [PsModu_leData]::Create($Name, [version]::new(0, 1, 0), $Psdroot)
+    # static [PsModuleData] Create([string]$Name, [DirectoryInfo]$Psdroot) {
+    #   return [PsModuleData]::Create($Name, [version]::new(0, 1, 0), $Psdroot)
     # }
-    # static [PsModu_leData] Create([string]$Name, [version]$Version, [DirectoryInfo]$Psdroot) {
-    #   $o = [PsModu_leData]::new(); $o.set_props([PSCustomObject]@{ Name = $Name; Version = $Version; Path = [path]::Combine($Psdroot.FullName, "$Name.psd1") })
+    # static [PsModuleData] Create([string]$Name, [version]$Version, [DirectoryInfo]$Psdroot) {
+    #   $o = [PsModuleData]::new(); $o.set_props([PSCustomObject]@{ Name = $Name; Version = $Version; Path = [path]::Combine($Psdroot.FullName, "$Name.psd1") })
     #   return $o
     # }
     # trimmmmm:
@@ -1319,30 +1358,29 @@ class PsModule {
       ModuleVersion         = [version]::new(0, 1, 0)
       PowerShellVersion     = [version][string]::Join('', (Get-Variable 'PSVersionTable').Value.PSVersion.Major.ToString(), '.0')
       ProcessorArchitecture = 'None'
-      # TODO: ask ai to generate readme
       ReadmeMd              = [string][StringBuilder]::new('
-      # [<ModuleName>](https://www.powershellgallery.com/packages/<ModuleName>)
+# [<ModuleName>](https://www.powershellgallery.com/packages/<ModuleName>)
 
-      🔥 Blazingly fast PowerShell thingy that stonks up your terminal game.
+🔥 Blazingly fast PowerShell thingy that stonks up your terminal game.
 
-      ## Usage
+## Usage
 
-      ```PowerShell
-      Install-Module <ModuleName>
-      ```
+```PowerShell
+Install-Module <ModuleName>
+```
 
-      then
+then
 
-      ```PowerShell
-      Import-Module <ModuleName>
-      # do stuff here.
-      ```
+```PowerShell
+Import-Module <ModuleName>
+# do stuff here.
+```
 
-      ## License
+## License
 
-      This project is licensed under the [WTFPL License](LICENSE).'
+This project is licensed under the [WTFPL License](LICENSE).'
       )
-      License               = [string][StringBuilder]::new('
+      License               = [PsModuleData]::LICENSE_TXT ? [PsModuleData]::LICENSE_TXT :[string][StringBuilder]::new('
                     DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
                             Version 2, December 2004
 
@@ -1745,6 +1783,25 @@ class PsModule {
     Publish-Module -Path $Path -NuGetApiKey $ApiKey;
 
     Write-Host "Module $moduleName Published " -f Green;
+  }
+  static [string] GetModuleLicenseText() {
+    if (![PsModuleData]::LICENSE_TXT) {
+      # $mit = (Invoke-WebRequest https://opensource.apple.com/source/dovecot/dovecot-293/dovecot/COPYING.MIT -Verbose:$false -SkipHttpErrorCheck).Content
+      [PsModuleData]::LICENSE_TXT = [string](Invoke-WebRequest http://sam.zoy.org/wtfpl/COPYING -Verbose:$false -SkipHttpErrorCheck).Content
+      if (![string]::IsNullOrWhiteSpace([PsModuleData]::LICENSE_TXT)) { [PsModuleData]::LICENSE_TXT = [PsModuleData]::LICENSE_TXT.Replace('2004 Sam Hocevar <sam@hocevar.net>', "<Year> <AuthorName> <<AuthorEmail>>") }
+    }
+    return [PsModuleData]::LICENSE_TXT
+  }
+}
+class ParseResult {
+  [Token[]]$Tokens
+  [ScriptBlockAst]$AST
+  [ParseError[]]$ParseErrors
+
+  ParseResult([ParseError[]]$Errors, [Token[]]$Tokens, [ScriptBlockAst]$AST) {
+    $this.ParseErrors = $Errors
+    $this.Tokens = $Tokens
+    $this.AST = $AST
   }
 }
 
