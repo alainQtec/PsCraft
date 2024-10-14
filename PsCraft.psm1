@@ -38,6 +38,11 @@ class PsCraft : ModuleManager {
     }
     return $Module_Path
   }
+  static [void] CreateModuleFolderStructure([PsModule]$Module) {
+    $Module.Data.ForEach({ $_.FormatValue() })
+    #TODO: Do stuff before saving the module. (fs preparation & cheking requirements)
+    $Module.Save()
+  }
   static [LocalPsModule[]] Search([string]$Name) {
     [ValidateNotNullOrWhiteSpace()][string]$Name = $Name
     $res = @(); $AvailModls = Get-Module -ListAvailable -Name $Name -Verbose:$false -ErrorAction Ignore
@@ -52,32 +57,6 @@ class PsCraft : ModuleManager {
       }
     }
     return $res
-  }
-  static [ParseResult] ParseCode($Code) {
-    # Parses the given code and returns an object with the AST, Tokens and ParseErrors
-    Write-Debug "    ENTER: ConvertToAst $Code"
-    $ParseErrors = $null
-    $Tokens = $null
-    if ($Code | Test-Path -ErrorAction SilentlyContinue) {
-      Write-Debug "      Parse Code as Path"
-      $AST = [System.Management.Automation.Language.Parser]::ParseFile(($Code | Convert-Path), [ref]$Tokens, [ref]$ParseErrors)
-    } elseif ($Code -is [System.Management.Automation.FunctionInfo]) {
-      Write-Debug "      Parse Code as Function"
-      $String = "function $($Code.Name) {`n$($Code.Definition)`n}"
-      $AST = [System.Management.Automation.Language.Parser]::ParseInput($String, [ref]$Tokens, [ref]$ParseErrors)
-    } else {
-      Write-Debug "      Parse Code as String"
-      $AST = [System.Management.Automation.Language.Parser]::ParseInput([String]$Code, [ref]$Tokens, [ref]$ParseErrors)
-    }
-    return [ParseResult]::new($ParseErrors, $Tokens, $AST)
-  }
-  static [void] CreateModuleFolderStructure([PsModule]$Module) {
-    #TODO: Do stuff before saving the module. (fs preparation & cheking requirements)
-    $Module.Save()
-  }
-  static [HashSet[String]] GetCommandAlias([System.Management.Automation.Language.Ast]$Ast) {
-    $Visitor = [AliasVisitor]::new(); $Ast.Visit($Visitor)
-    return $Visitor.Aliases
   }
 }
 
