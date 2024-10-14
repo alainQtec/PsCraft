@@ -32,21 +32,32 @@
 
 For more usage read the [docs](/docs/Readme.md). they pretty easy!
 
-## [WIP] Features
+**Features (W.I.P) :**
 
-- [x] **Module Creation & Management**:
+- [x] **Create & Manage** modules: Using
       [`PsCraft.ModuleManager`](Private/PsCraft.ModuleManager/PsCraft.ModuleManager.psm1)
 
-  A module to build robust modules with ease.
+  <details>
+    <summary>Example</summary>
 
-- [ ] Fix all todos.
-      <p>Use
-      <a href="https://marketplace.visualstudio.com/items?itemName=Gruntfuggly.todo-tree">todo
-      tree</a> to find all of them.</p>
+  ⤷ **You can build robust modules unders 5 seconds!**
 
-- [ ] **Secure Your Code**: `PsCraft.CodeSigner.psm1`
+  - Foo
+  - Bar
 
-  <P>Yes its <a href ="https://learn.microsoft.com/en-us/previous-versions/windows/hardware/design/dn653556(v=vs.85)">code signing</a>, but this module aims to do it cross-platform</P>
+  `Example`:
+
+  ```js
+  function logSomething(something) {
+    console.log("Something", something);
+  }
+  ```
+
+  </details>
+
+- [ ] Add **CodeSigning** Functions: `PsCraft.CodeSigner.psm1`
+
+  <p>Cross-platform <a href ="https://learn.microsoft.com/en-us/previous-versions/windows/hardware/design/dn653556(v=vs.85)">code signing</a>.</p>
 
   <p>Sign your modules and scripts with digital signatures for enhanced <a href ="https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_signing?view=powershell-7.4">security and trust</a></p>
 
@@ -54,37 +65,7 @@ For more usage read the [docs](/docs/Readme.md). they pretty easy!
 
   A module to create intuitive graphical interfaces for your modules.
 
-## FAQs
-
-<details>
-  <summary>Why build this? Who is this for?</summary>
-
-⤷ **Answer goes here**
-
-- Foo
-- Bar
-
-`Explain important topic`
-
-</details>
-
-<details>
-  <summary>How do you presonnaly use it?</summary>
-
-⤷ **Answer goes here**
-
-- Foo
-- Bar
-
-`Example`:
-
-```js
-function logSomething(something) {
-  console.log("Something", something);
-}
-```
-
-</details>
+  <p>Use<a href="https://marketplace.visualstudio.com/items?itemName=Gruntfuggly.todo-tree">todo tree</a> to find all of them.</p>
 
 ## License
 
