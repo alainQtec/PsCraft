@@ -74,7 +74,7 @@ For more usage read the [docs](/docs/Readme.md). they pretty easy!
 
 ## Contributing
 
-Pull requests are welcome! You can also contribute to this module by writing
-code, sharing opinions, and providing feedback.
+Pull requests are welcome! You can also contribute to this module by
+[sharing opinions, and providing feedback](https://github.com/alainQtec/PsCraft/discussions/2).
 
 ![Alt](https://repobeats.axiom.co/api/embed/9cbc0ffce6f62ace082852045cd005b5ad61cebd.svg "Repobeats analytics image")
