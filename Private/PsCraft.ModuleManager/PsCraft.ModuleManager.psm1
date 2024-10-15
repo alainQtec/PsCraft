@@ -1639,7 +1639,7 @@ class PsModule {
               if ($str -match "<$_>") {
                 $str = $str.Replace("<$_>", $hashtable["$_"])
                 $item.SetValue([scriptblock]::Create($str))
-                Write-Debug "`$module.data.$($item.Key) Replaced <$_> with $str)"
+                Write-Debug "`$module.data.$($item.Key) Replaced <$_>)"
               }
             }
           )
@@ -1652,7 +1652,7 @@ class PsModule {
               if ($str -match "<$_>") {
                 $str = $str.Replace("<$_>", $hashtable["$_"])
                 $item.SetValue($str)
-                Write-Debug "`$module.data.$($item.Key) Replaced <$_> with $str"
+                Write-Debug "`$module.data.$($item.Key) Replaced <$_>"
               }
             }
           )
@@ -1673,26 +1673,27 @@ class PsModule {
   }
   [void] WritetoDisk([SaveOptions]$Options) {
     $Force = $Options -eq [SaveOptions]::None
-    # Todo: Make good use of all save Options,not just Force/OvewriteStuff/none
-    Write-Host "[+] Create Module Directories ... " -ForegroundColor Green -NoNewline
+    $debug = $(Get-Variable debugPreference -ValueOnly) -eq "Continue"
+    Write-Host "[+] Create Module Directories ... " -ForegroundColor Green -NoNewline:(!$debug -as [SwitchParameter])
     $this.Folders | ForEach-Object {
       $nF = @(); $p = $_.value; While (!$p.Exists) { $nF += $p; $p = $p.Parent }
-      [Array]::Reverse($nF); ForEach ($d in $nF) {
+      [Array]::Reverse($nF);
+      ForEach ($d in $nF) {
         New-Item -Path $d.FullName -ItemType Directory -Force:$Force
-        if (!$what_if) { Write-Debug "Created Directory '$($d.FullName)'" }
+        if ($debug) { Write-Debug "Created Directory '$($d.FullName)'" }
       }
     }
     Write-Host "Done" -ForegroundColor Green
 
-    Write-Host "[+] Create Module Files ... " -ForegroundColor Green -NoNewline
-    $this.GetFiles().ForEach({ New-Item -Path $_.Path -ItemType File -Value $_.Content -Force:$Force | Out-Null; if (!$what_if) { Write-Debug "Created $($_.Name)" } })
+    Write-Host "[+] Create Module Files ... " -ForegroundColor Green -NoNewline:(!$debug -as [SwitchParameter])
+    $this.GetFiles().ForEach({ New-Item -Path $_.Path -ItemType File -Value $_.Content -Force:$Force | Out-Null; if ($debug) { Write-Debug "Created $($_.Name)" } })
     $PM = @{}; $this.Data.Where({ $_.Attributes -contains "ManifestKey" }).ForEach({ $PM.Add($_.Key, $_.Value) })
     New-ModuleManifest @PM
     Write-Host "Done" -ForegroundColor Green
   }
   [PsModule] static Load([string]$Name, $Path) {
     # TODO: Add some Module Loading code Here
-    return ''
+    throw "sorry NOT IMPLEMENTED YET"
   }
   [PsObject[]] GetFiles() {
     $KH = @{}; $this.Data.Where({ $_.Attributes -notcontains "ManifestKey" -and $_.Attributes -contains "FileContent" }).ForEach({ $KH[$_.Key] = $_.Value })
@@ -1704,8 +1705,9 @@ class PsModule {
     Remove-Item $this.moduleDir -Recurse -Force -ErrorAction SilentlyContinue
   }
   [void] Test() {
-    $this.Save()
+    # $this.Save()
     # .then run tests
+    throw "sorry NOT IMPLEMENTED YET"
   }
   [void] Publish() {
     $this.Publish('LocalRepo', [Path]::GetDirectoryName($Pwd))
