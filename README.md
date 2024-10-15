@@ -25,8 +25,15 @@
   ```PowerShell
   Install-Module PsCraft
   ```
-- then ..
-  > .gif video of usage will go here.
+- then .. Create, test, build, deploy 🚀.
+  
+  ⤷ Ex: **You can create a [script module](https://learn.microsoft.com/en-us/powershell/scripting/developer/module/how-to-write-a-powershell-script-module) in unders 5 seconds!**
+    <video controls autoplay src="https://github.com/user-attachments/assets/c4373930-ef94-45aa-99de-26b7f5e6cb49" width="320" height="240" controls>Your browser does not support the video tag.</video>
+  `Its only one comand`:
+
+  ```PowerShell
+  $module = New-PsModule "CliHelper.Core"
+  ```
 
   (づ ᴗ _ᴗ)づ haleluːjə!
 
@@ -36,24 +43,6 @@ For more usage read the [docs](/docs/Readme.md). they pretty easy!
 
 - [x] **Create & Manage** modules: Using
       [`PsCraft.ModuleManager`](Private/PsCraft.ModuleManager/PsCraft.ModuleManager.psm1)
-
-  <details>
-    <summary>Example</summary>
-
-  ⤷ **You can build robust modules unders 5 seconds!**
-
-  - Foo
-  - Bar
-
-  `Example`:
-
-  ```js
-  function logSomething(something) {
-    console.log("Something", something);
-  }
-  ```
-
-  </details>
 
 - [ ] Add **CodeSigning** Functions: `PsCraft.CodeSigner.psm1`
 
@@ -65,7 +54,7 @@ For more usage read the [docs](/docs/Readme.md). they pretty easy!
 
   A module to create intuitive graphical interfaces for your modules.
 
-  <p>Use<a href="https://marketplace.visualstudio.com/items?itemName=Gruntfuggly.todo-tree">todo tree</a> to find all of them.</p>
+<p>And other todos not mentioned here. Use <a href="https://marketplace.visualstudio.com/items?itemName=Gruntfuggly.todo-tree">todo tree</a> to find all of them.</p>
 
 ## License
 
