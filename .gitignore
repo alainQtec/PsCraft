@@ -385,6 +385,7 @@ FodyWeavers.xsd
 *.sln.iml
 .fn
 .env
+docs/_ref_b.txt
 BuildOutput/
 LocalPSRepo/
 Private/ModuleManager/
