@@ -547,10 +547,10 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
       Errors   = [List[PSCustomObject]]@()
     }
     if (![Directory]::Exists($module.Path.FullName)) {
-      Write-Warning "Please save the module first."
+      Write-Warning "Module path '$($module.Path.FullName)' does not exist. Please run `$module.save() first."
       return $results
     }
-    $filesToCheck = $module.Files.Value.Where({ $_.Extension -in ('.md', '.ps1', '.psd1', '.psm1') })
+    $filesToCheck = $module.Files.Value.Where({ $_.Extension -in ('.ps1', '.psd1', '.psm1') })
     $frmtSettings = $module.Files.Where({ $_.Name -eq "ScriptAnalyzer" })[0].Value.FullName
     if ($filesToCheck.Count -eq 0) {
       Write-Host "No files to format found in the module!" -ForegroundColor Green
@@ -1141,6 +1141,9 @@ class PsModuleData {
       # Write-Host " done $($this.Key) >>" -f Green
     }
   }
+  hidden [void] SetValue($Value) {
+    $this.Value = $Value
+  }
 }
 class LocalPsModule {
   [ValidateNotNullOrEmpty()][FileInfo]$Psd1
@@ -1239,10 +1242,10 @@ class PsModule {
     }
     if ($null -eq $o.Value -and [PsModule]::_n) { [PsModule]::_n = $false; $n = [PsModule]::new(); $o = [ref]$n }
     $o.Value.Name = [string]::IsNullOrWhiteSpace($Name) ? [IO.Path]::GetFileNameWithoutExtension([IO.Path]::GetRandomFileName()) : $Name
-    ($mName, $rootpath) = [string]::IsNullOrWhiteSpace($Path.FullName) ? ($o.Value.Name, $Path.FullName) : ($o.Value.Name, "")
+    ($mName, $_umroot) = [string]::IsNullOrWhiteSpace($Path.FullName) ? ($o.Value.Name, $Path.FullName) : ($o.Value.Name, "")
     $mroot = [Path]::Combine([ModuleManager]::GetUnResolvedPath($(
           switch ($true) {
-            $(![string]::IsNullOrWhiteSpace($rootpath)) { $rootpath; break }
+            $(![string]::IsNullOrWhiteSpace($_umroot)) { $_umroot; break }
             $o.Value.Path {
               if ([Path]::GetFileNameWithoutExtension($o.Value.Path) -ne $mName) {
                 $o.Value.Path = [FileInfo][Path]::Combine(([Path]::GetDirectoryName($o.Value.Path) | Split-Path), "$mName.psd1")
@@ -1257,45 +1260,41 @@ class PsModule {
     $o.Value.Files = [List[ModuleFile]]::new()
     $o.Value.Folders = [List[ModuleFolder]]::new()
     $mtest = [Path]::Combine($mroot, 'Tests');
+    $workflows = [Path]::Combine($mroot, '.github', 'workflows')
     $dr = @{
       root      = $mroot
       tests     = [Path]::Combine($mroot, 'Tests');
       public    = [Path]::Combine($mroot, 'Public')
       private   = [Path]::Combine($mroot, 'Private')
       localdata = [Path]::Combine($mroot, [Thread]::CurrentThread.CurrentCulture.Name) # The purpose of this folder is to store localized content for your module, such as help files, error messages, or any other text that needs to be displayed in different languages.
-      workflows = [Path]::Combine($mroot, '.github', 'workflows')
+      workflows = $workflows
       # Add more here. you can access them like: $this.Folders.Where({ $_.Name -eq "root" }).value.FullName
     };
     $dr.Keys.ForEach({ $o.Value.Folders += [ModuleFolder]::new($_, $dr[$_]) })
     $fl = @{
-      Path            = [Path]::Combine($mroot, "$mName.psd1")
-      Builder         = [Path]::Combine($mroot, "build.ps1")
-      License         = [Path]::Combine($mroot, "LICENSE")
-      ReadmeMd        = [Path]::Combine($mroot, "README.md")
-      Manifest        = [Path]::Combine($mroot, "$mName.psd1")
-      Localdata       = [Path]::Combine($dr["localdata"], "$mName.strings.psd1")
-      rootLoader      = [Path]::Combine($mroot, "$mName.psm1")
-      ModuleTest      = [Path]::Combine($mtest, "$mName.Module.Tests.ps1")
-      FeatureTest     = [Path]::Combine($mtest, "$mName.Features.Tests.ps1")
-      ScriptAnalyzer  = [Path]::Combine($mroot, "PSScriptAnalyzerSettings.psd1")
-      IntegrationTest = [Path]::Combine($mtest, "$mName.Integration.Tests.ps1")
+      Path             = [Path]::Combine($mroot, "$mName.psd1")
+      Builder          = [Path]::Combine($mroot, "build.ps1")
+      License          = [Path]::Combine($mroot, "LICENSE")
+      ReadmeMd         = [Path]::Combine($mroot, "README.md")
+      Manifest         = [Path]::Combine($mroot, "$mName.psd1")
+      Localdata        = [Path]::Combine($dr["localdata"], "$mName.strings.psd1")
+      rootLoader       = [Path]::Combine($mroot, "$mName.psm1")
+      ModuleTest       = [Path]::Combine($mtest, "$mName.Module.Tests.ps1")
+      FeatureTest      = [Path]::Combine($mtest, "$mName.Features.Tests.ps1")
+      ScriptAnalyzer   = [Path]::Combine($mroot, "PSScriptAnalyzerSettings.psd1")
+      IntegrationTest  = [Path]::Combine($mtest, "$mName.Integration.Tests.ps1")
+      DelWorkflowsyaml = [Path]::Combine($workflows, 'Delete_old_workflow_runs.yaml')
+      Codereviewyaml   = [Path]::Combine($workflows, 'Codereview.yaml')
+      Publishyaml      = [Path]::Combine($workflows, 'Publish.yaml')
+      CICDyaml         = [Path]::Combine($workflows, 'CI.yaml')
       # Add more here
     };
     $fl.Keys.ForEach({ $o.Value.Files += [ModuleFile]::new($_, $fl[$_]) })
     $o.Value.CreateModuleData(); # same as: $o.Value.Data = [PsModule]::CreateModuleData($o.Value.Name, $o.Value.Path, $o.Value.Files);
     return $o.Value
   }
-  [PsModule] static Load($Path) {
-    # TODO: Add some Module load~ng code Here
-    return ''
-  }
-  [PsModule] static Load([string]$Name, $Path) {
-    # TODO: Add some Module Loading code Here
-    return ''
-  }
   [void] CreateModuleData() {
     $this.Data = [PsModule]::CreateModuleData([string]$this.Name, [string]$this.Path, [ModuleFile[]]$this.Files);
-    $this.Data.ForEach({ $_.FormatValue() })
   }
   static [Collection[PsModuleData]] CreateModuleData([string]$Name, [string]$Path, [List[ModuleFile]]$Files) {
     # static [PsModuleData] Create([string]$Name, [DirectoryInfo]$Psdroot) {
@@ -1305,149 +1304,49 @@ class PsModule {
     #   $o = [PsModuleData]::new(); $o.set_props([PSCustomObject]@{ Name = $Name; Version = $Version; Path = [path]::Combine($Psdroot.FullName, "$Name.psd1") })
     #   return $o
     # }
-    # trimmmmm:
-    # $o.Value.PsObject.properties.Name.ForEach({
-    # $str = $(([PsModule]::Data.$_).ToString().Split("`n") -as [string[]]).ForEach({
-    #         if ($_.Length -ge 12) { $_.Substring(12) }
-    #     }
-    # )
-    # replace propssssss:
-    # ForEach ($prop in $props) {
-    #   $n = $prop.Name
-    #   $t = $prop.TypeName -as [type]
-    #   if ($null -eq $t) { Write-Warning "Unable to find type [$n]"; continue }
-    #   switch ($t.Name) {
-    #     'ScriptBlock' { $phv.Keys.ForEach({ if ($null -ne $this.$n) { $sString = $this.$n.ToString().Replace("<$_>", $phv.$_); $this.$n = [scriptblock]::Create($sString) } }); break }
-    #     'String' { $phv.Keys.ForEach({ if ($null -ne $this.$n) { $this.$n = $this.$n.Replace("<$_>", $phv.$_) } }); break }
-    #     Default { continue }
-    #   }
-    # }
-    # [version] hidden $DotNetFrameworkVersion;
-    # [version] hidden $PowerShellHostVersion;
-    # [string[]] hidden $DscResourcesToExport;
-    # [string] hidden $DefaultCommandPrefix;
-    # [string[]] hidden $RequiredAssemblies;
-    # [string[]] hidden $FunctionsToExport;
-    # [string[]] hidden $VariablesToExport;
-    # [string[]] hidden $FormatsToProcess;
-    # [string[]] hidden $ScriptsToProcess;
-    # [String] hidden $PowerShellHostName;
-    # [string[]] hidden $AliasesToExport;
-    # [string[]] hidden $CmdletsToExport;
     # [Object[]] hidden $RequiredModules;
     # [string[]] hidden $TypesToProcess;
     # [Object[]] hidden $NestedModules;
     # [Object[]] hidden $ModuleList;
-    # [string] hidden $ReleaseNotes;
     # [string] hidden $HelpInfoUri;
     # [Object] hidden $PrivateData;
     # [string[]] hidden $FileList;
     # [uri] hidden $ProjectUri;
     # [uri] hidden $LicenseUri;
     # [uri] hidden $IconUri;
+    # Year userName AuthorEmail
+    $AuthorName = [ModuleManager]::GetAuthorName()
+    $AuthorEmail = [ModuleManager]::GetAuthorEmail()
     $propsHashtable = @{
       Path                  = [Path]::Combine($Path, $Path.Split([Path]::DirectorySeparatorChar)[-1] + ".psd1")
       Guid                  = [guid]::NewGuid()
-      Author                = [ModuleManager]::GetAuthorName()
-      Copyright             = $("Copyright {0} {1} {2}. All rights reserved." -f [string][char]169, [datetime]::Now.Year, [ModuleManager]::GetAuthorName());
+      Year                  = [datetime]::Now.Year
+      Author                = $AuthorName
+      UserName              = $AuthorEmail.Split('@')[0]
+      Copyright             = $("Copyright {0} {1} {2}. All rights reserved." -f [string][char]169, [datetime]::Now.Year, $AuthorName);
       RootModule            = $Name + '.psm1'
       ClrVersion            = [string]::Join('.', (Get-Variable 'PSVersionTable' -ValueOnly).SerializationVersion.ToString().split('.')[0..2])
       ModuleName            = $($Name ? $Name : '')
       Description           = "A longer description of the Module, its purpose, common use cases, etc."
-      CompanyName           = [ModuleManager]::GetAuthorEmail().Split('@')[0]
+      CompanyName           = $AuthorEmail.Split('@')[0]
+      AuthorEmail           = $AuthorEmail
       ModuleVersion         = [version]::new(0, 1, 0)
       PowerShellVersion     = [version][string]::Join('', (Get-Variable 'PSVersionTable').Value.PSVersion.Major.ToString(), '.0')
       ProcessorArchitecture = 'None'
-      ReadmeMd              = [string][StringBuilder]::new('
-# [<ModuleName>](https://www.powershellgallery.com/packages/<ModuleName>)
-
-🔥 Blazingly fast PowerShell thingy that stonks up your terminal game.
-
-## Usage
-
-```PowerShell
-Install-Module <ModuleName>
-```
-
-then
-
-```PowerShell
-Import-Module <ModuleName>
-# do stuff here.
-```
-
-## License
-
-This project is licensed under the [WTFPL License](LICENSE).'
-      )
-      License               = [PsModuleData]::LICENSE_TXT ? [PsModuleData]::LICENSE_TXT :[string][StringBuilder]::new('
-                    DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
-                            Version 2, December 2004
-
-        Copyright (C) <Year> <AuthorName> <<AuthorEmail>>
-
-        Everyone is permitted to copy and distribute verbatim or modified
-        copies of this license document, and changing it is allowed as long
-        as the name is changed.
-
-                    DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
-          TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
-
-          0. You just DO WHAT THE FUCK YOU WANT TO.'
-      )
-      # TODO: ask ai to generate release notes
-      ReleaseNotes          = [string][StringBuilder]::new('
-        # Release Notes
-
-        ## Version _<ModuleVersion>_
-
-        ### New Features
-
-        - Added feature abc.
-        - Added feature defg.
-
-        ### Installation
-
-        ```PowerShell
-        Install-Module <ModuleName>
-        ```
-        Thats it. If that fails, try running manual installation:
-
-        1. Download the
-          [ModuleZip](https://github.com/<UserName>/<ModuleName>/releases/download/v<ModuleVersion>/<ModuleName>.zip)
-          file attached to the release.
-        2. **If on Windows**: Right-click the downloaded zip, select Properties, then
-          unblock the file.
-          > _This is to prevent having to unblock each file individually after
-          > unzipping._
-        3. Unzip the archive.
-        4. (Optional) Place the module folder somewhere in your `PsModulePath`.
-          > _You can view the paths listed by running the environment variable
-          > `$env:PsModulePath`_
-        5. Import the module, using the full path to the PSD1 file in place of
-            `<ModuleName>` if the unzipped module folder is not in your `PsModulePath`:
-
-          ```powershell
-            # In Env:PsModulePath
-          Import-Module <ModuleName>
-
-          # Otherwise, provide the path to the manifest:
-          Import-Module -Path Path/to/<ModuleName>/<ModuleVersion>/<ModuleName>.psd1
-          ```'
-      )
+      ReadmeMd              = [PsModule]::GetModuleReadmeText()
+      License               = [PsModuleData]::LICENSE_TXT ? [PsModuleData]::LICENSE_TXT : [PsModule]::GetModuleLicenseText()
+      ReleaseNotes          = "# Release Notes`n`n## Version _<ModuleVersion>_`n`n### New Features`n`n- Added feature abc.`n- Added feature defg.`n`n## Changelog`n`n  >..."
       Builder               = {
         # .SYNOPSIS
         #   <ModuleName> build script
         # .DESCRIPTION
-        #   A build script that uses another buider module (PsCraft) 🗿
+        #   A build script that uses a builder module 🗿
         # .LINK
-        #   https://github.com/<userName>/<ModuleName>/blob/main/build.ps1
+        #   https://github.com/<UserName>/<ModuleName>/blob/main/build.ps1
         # .NOTES
-        #   Author   : <AuthorName>
-        #   Copyright: © <Year> <UserName> <<AuthorEmail>>. All rights reserved.
+        #   Author   : <Author>
+        #   Copyright: <Copyright>
         #   License  : MIT
-        # .EXAMPLE
-        #   Import-Module PsCraft; Build-Module -Task Test -Verbose
         [cmdletbinding(DefaultParameterSetName = 'task')]
         param(
           [parameter(Position = 0, ParameterSetName = 'task')]
@@ -1470,9 +1369,8 @@ This project is licensed under the [WTFPL License](LICENSE).'
           [Alias('-Help')]
           [switch]$Help
         )
-
-        Import-Module PsCraft
-        Build-Module -Task $Task
+        # Import the "buider module" and use Build-Module cmdlet to build this module:
+        Import-Module PsCraft; Build-Module -Task $Task
       }
       Localdata             = {
         @{
@@ -1681,6 +1579,10 @@ This project is licensed under the [WTFPL License](LICENSE).'
           # TODO: Add more contexts and tests as needed to cover various integration scenarios.
         }
       }
+      DelWorkflowsyaml      = [PsModule]::GetModuleDelWorkflowsyaml()
+      Codereviewyaml        = [PsModule]::GetModuleCodereviewyaml()
+      Publishyaml           = [PsModule]::GetModulePublishyaml()
+      CICDyaml              = [PsModule]::GetModuleCICDyaml()
       Tags                  = [string[]]("PowerShell", [Environment]::UserName)
       #CompatiblePSEditions = $($Ps_Ed = (Get-Variable 'PSVersionTable').Value.PSEdition; if ([string]::IsNullOrWhiteSpace($Ps_Ed)) { 'Desktop' } else { $Ps_Ed }) # skiped on purpose. <<< https://blog.netnerds.net/2023/03/dont-waste-your-time-with-core-versions
     }
@@ -1716,26 +1618,86 @@ This project is licensed under the [WTFPL License](LICENSE).'
       Write-Error "Name cannot be empty"
       return
     }
+    $filestoFormat = $this.GetFiles().Where({ $_.Path.Extension -in ('.ps1', '.psd1', '.psm1') })
+    $this.Data.Where({ $_.Key -in $filestoFormat.Name }).ForEach({ $_.FormatValue() })
+    $this.ReplaceTemplates()
+    $this.WritetoDisk($Options)
+  }
+  [void] ReplaceTemplates() {
+    $templates = $this.Data.Where({ $_.Type.Name -in ("String", "ScriptBlock") })
+    $hashtable = @{}; $this.Data.Foreach({ $hashtable += @{ $_.Key = $_.Value } }); $keys = $hashtable.Keys
+    foreach ($item in $templates) {
+      [string]$n = $item.Key
+      [string]$t = $item.Type.Name
+      if ([string]::IsNullOrWhiteSpace($n)) { Write-Warning "`$item.Key is empty"; continue }
+      if ([string]::IsNullOrWhiteSpace($t)) { Write-Warning "`$item.Type.Name is empty"; continue }
+      switch ($t) {
+        'ScriptBlock' {
+          if ($null -eq $hashtable[$n]) { break }
+          $str = $hashtable[$n].ToString()
+          $keys.ForEach({
+              if ($str -match "<$_>") {
+                $str = $str.Replace("<$_>", $hashtable["$_"])
+                $item.SetValue([scriptblock]::Create($str))
+                Write-Debug "`$module.data.$($item.Key) Replaced <$_> with $str)"
+              }
+            }
+          )
+          break
+        }
+        'String' {
+          if ($null -eq $hashtable[$n]) { break }
+          $str = $hashtable[$n]
+          $keys.ForEach({
+              if ($str -match "<$_>") {
+                $str = $str.Replace("<$_>", $hashtable["$_"])
+                $item.SetValue($str)
+                Write-Debug "`$module.data.$($item.Key) Replaced <$_> with $str"
+              }
+            }
+          )
+          break
+        }
+        Default {
+          Write-Warning "Unknown Type: $t"
+          continue
+        }
+      }
+    }
+  }
+  [void] SetValue([string]$Key, $Value) {
+    $this.Data.Where({ $_.Key -eq $Key }).SetValue($Value);
+  }
+  [void] FormatCode() {
+    [ModuleManager]::FormatCode($this)
+  }
+  [void] WritetoDisk([SaveOptions]$Options) {
     $Force = $Options -eq [SaveOptions]::None
     # Todo: Make good use of all save Options,not just Force/OvewriteStuff/none
-    Write-Host "[+] Create Module Directories ..." -ForegroundColor Green
+    Write-Host "[+] Create Module Directories ... " -ForegroundColor Green -NoNewline
     $this.Folders | ForEach-Object {
       $nF = @(); $p = $_.value; While (!$p.Exists) { $nF += $p; $p = $p.Parent }
       [Array]::Reverse($nF); ForEach ($d in $nF) {
         New-Item -Path $d.FullName -ItemType Directory -Force:$Force
-        if (!$what_if) { Write-Verbose "Created Directory '$($d.FullName)'" }
+        if (!$what_if) { Write-Debug "Created Directory '$($d.FullName)'" }
       }
     }
+    Write-Host "Done" -ForegroundColor Green
+
+    Write-Host "[+] Create Module Files ... " -ForegroundColor Green -NoNewline
+    $this.GetFiles().ForEach({ New-Item -Path $_.Path -ItemType File -Value $_.Content -Force:$Force | Out-Null; if (!$what_if) { Write-Debug "Created $($_.Name)" } })
+    $PM = @{}; $this.Data.Where({ $_.Attributes -contains "ManifestKey" }).ForEach({ $PM.Add($_.Key, $_.Value) })
+    New-ModuleManifest @PM
+    Write-Host "Done" -ForegroundColor Green
+  }
+  [PsModule] static Load([string]$Name, $Path) {
+    # TODO: Add some Module Loading code Here
+    return ''
+  }
+  [PsObject[]] GetFiles() {
     $KH = @{}; $this.Data.Where({ $_.Attributes -notcontains "ManifestKey" -and $_.Attributes -contains "FileContent" }).ForEach({ $KH[$_.Key] = $_.Value })
     $MF = $this.Files | Select-Object Name, @{l = "Path"; e = { $_.Value } }, @{l = "Content"; e = { $KH[$_.Name] } }
-    Write-Host "[+] Create Module Files ..." -ForegroundColor Green
-    $MF.ForEach({ New-Item -Path $_.Path -ItemType File -Value $_.Content -Force:$Force | Out-Null; if (!$what_if) { Write-Verbose "Created $($_.Name)" } })
-    $PM = @{}; $this.Data.Where({ $_.Attributes -contains "ManifestKey" }).ForEach({ $PM.Add($_.Key, $_.Value) })
-    Write-Host "[+] Create Module Manifest ..." -ForegroundColor Green
-    New-ModuleManifest @PM
-  }
-  [void] FormatCode() {
-    [ModuleManager]::FormatCode($this)
+    return $MF
   }
   [void] Delete() {
     Get-Module $this.Name | Remove-Module -Force -ErrorAction SilentlyContinue
@@ -1786,11 +1748,49 @@ This project is licensed under the [WTFPL License](LICENSE).'
   }
   static [string] GetModuleLicenseText() {
     if (![PsModuleData]::LICENSE_TXT) {
-      # $mit = (Invoke-WebRequest https://opensource.apple.com/source/dovecot/dovecot-293/dovecot/COPYING.MIT -Verbose:$false -SkipHttpErrorCheck).Content
-      [PsModuleData]::LICENSE_TXT = [string](Invoke-WebRequest http://sam.zoy.org/wtfpl/COPYING -Verbose:$false -SkipHttpErrorCheck).Content
-      if (![string]::IsNullOrWhiteSpace([PsModuleData]::LICENSE_TXT)) { [PsModuleData]::LICENSE_TXT = [PsModuleData]::LICENSE_TXT.Replace('2004 Sam Hocevar <sam@hocevar.net>', "<Year> <AuthorName> <<AuthorEmail>>") }
+      try {
+        # $mit = (Invoke-WebRequest https://opensource.apple.com/source/dovecot/dovecot-293/dovecot/COPYING.MIT -Verbose:$false -SkipHttpErrorCheck).Content
+        [PsModuleData]::LICENSE_TXT = [string](Invoke-WebRequest http://sam.zoy.org/wtfpl/COPYING -Verbose:$false -SkipHttpErrorCheck -ea Stop).Content
+      } catch {
+        Write-Warning "Failed to get license text from web. falling back to default"
+        [PsModuleData]::LICENSE_TXT = [string][StringBuilder]::new('
+              DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+                      Version 2, December 2004
+
+        <Copyright>
+
+        Everyone is permitted to copy and distribute verbatim or modified
+        copies of this license document, and changing it is allowed as long
+        as the name is changed.
+
+                    DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+          TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
+
+          0. You just DO WHAT THE FUCK YOU WANT TO.'
+        )
+      }
+      if (![string]::IsNullOrWhiteSpace([PsModuleData]::LICENSE_TXT)) {
+        [PsModuleData]::LICENSE_TXT = [PsModuleData]::LICENSE_TXT.Replace('2004 Sam Hocevar <sam@hocevar.net>', "$([datetime]::Now.Year) $([ModuleManager]::GetAuthorName()) <$([ModuleManager]::GetAuthorEmail())>")
+      }
     }
     return [PsModuleData]::LICENSE_TXT
+  }
+  static [string] GetModuleReadmeText() {
+    return [Encoding]::UTF8.GetString([Convert]::FromBase64String("CiMgWzxNb2R1bGVOYW1lPl0oaHR0cHM6Ly93d3cucG93ZXJzaGVsbGdhbGxlcnkuY29tL3BhY2thZ2VzLzxNb2R1bGVOYW1lPikKCvCflKUgQmxhemluZ2x5IGZhc3QgUG93ZXJTaGVsbCB0aGluZ3kgdGhhdCBzdG9ua3MgdXAgeW91ciB0ZXJtaW5hbCBnYW1lLgoKIyMgVXNhZ2UKCmBgYFBvd2VyU2hlbGwKSW5zdGFsbC1Nb2R1bGUgPE1vZHVsZU5hbWU+CmBgYAoKdGhlbgoKYGBgUG93ZXJTaGVsbApJbXBvcnQtTW9kdWxlIDxNb2R1bGVOYW1lPgojIGRvIHN0dWZmIGhlcmUuCmBgYAoKIyMgTGljZW5zZQoKVGhpcyBwcm9qZWN0IGlzIGxpY2Vuc2VkIHVuZGVyIHRoZSBbV1RGUEwgTGljZW5zZV0oTElDRU5TRSku"));
+  }
+  static [string] GetModuleCICDyaml() {
+    return [Encoding]::UTF8.GetString([Convert]::FromBase64String("bmFtZTogQ0kKb246IFtwdXNoLCBwdWxsX3JlcXVlc3QsIHdvcmtmbG93X2Rpc3BhdGNoXQpkZWZhdWx0czoKICBydW46CiAgICBzaGVsbDogcHdzaAoKam9iczoKICBidWlsZDoKICAgIG5hbWU6IFJ1bnMgb24gYWxsIHBsYXRmb3JtcwogICAgcnVucy1vbjogJHt7IG1hdHJpeC5vcyB9fQogICAgc3RyYXRlZ3k6CiAgICAgIGZhaWwtZmFzdDogZmFsc2UKICAgICAgbWF0cml4OgogICAgICAgIG9zOiBbdWJ1bnR1LWxhdGVzdCwgd2luZG93cy1sYXRlc3QsIG1hY09TLWxhdGVzdF0KICAgIHN0ZXBzOgogICAgICAtIHVzZXM6IGFjdGlvbnMvY2hlY2tvdXRAdjMKICAgICAgLSBuYW1lOiBCdWlsZAogICAgICAgIHJ1bjogLi9idWlsZC5wczEgLVRhc2sgVGVzdA=="));
+  }
+  static [string] GetModuleCodereviewyaml() {
+    return [Encoding]::UTF8.GetString([Convert]::FromBase64String("bmFtZTogQ29kZSBSZXZpZXcKcGVybWlzc2lvbnM6CiAgY29udGVudHM6IHJlYWQKICBwdWxsLXJlcXVlc3RzOiB3cml0ZQoKb246CiAgcHVsbF9yZXF1ZXN0OgogICAgdHlwZXM6IFtvcGVuZWQsIHJlb3BlbmVkLCBzeW5jaHJvbml6ZV0KCmpvYnM6CiAgdGVzdDoKICAgIHJ1bnMtb246IHVidW50dS1sYXRlc3QKICAgIHN0ZXBzOgogICAgICAtIHVzZXM6IGFuYzk1L0NoYXRHUFQtQ29kZVJldmlld0B2MS4wLjEyCiAgICAgICAgZW52OgogICAgICAgICAgR0lUSFVCX1RPS0VOOiAke3sgc2VjcmV0cy5HSVRIVUJfVE9LRU4gfX0KICAgICAgICAgIE9QRU5BSV9BUElfS0VZOiAke3sgc2VjcmV0cy5PUEVOQUlfQVBJX0tFWSB9fQogICAgICAgICAgTEFOR1VBR0U6IEVuZ2xpc2gKICAgICAgICAgIE9QRU5BSV9BUElfRU5EUE9JTlQ6IGh0dHBzOi8vYXBpLm9wZW5haS5jb20vdjEKICAgICAgICAgIE1PREVMOiBncHQtNG8gIyBodHRwczovL3BsYXRmb3JtLm9wZW5haS5jb20vZG9jcy9tb2RlbHMKICAgICAgICAgIFBST01QVDogUGxlYXNlIGNoZWNrIGlmIHRoZXJlIGFyZSBhbnkgY29uZnVzaW9ucyBvciBpcnJlZ3VsYXJpdGllcyBpbiB0aGUgZm9sbG93aW5nIGNvZGUgZGlmZgogICAgICAgICAgdG9wX3A6IDEKICAgICAgICAgIHRlbXBlcmF0dXJlOiAxCiAgICAgICAgICBtYXhfdG9rZW5zOiAxMDAwMAogICAgICAgICAgTUFYX1BBVENIX0xFTkdUSDogMTAwMDAgIyBpZiB0aGUgcGF0Y2gvZGlmZiBsZW5ndGggaXMgbGFyZ2UgdGhhbiBNQVhfUEFUQ0hfTEVOR1RILCB3aWxsIGJlIGlnbm9yZWQgYW5kIHdvbid0IHJldmlldy4="));
+  }
+  static [string] GetModulePublishyaml() {
+    return [Encoding]::UTF8.GetString([Convert]::FromBase64String("bmFtZTogR2l0SHViIHJlbGVhc2UgYW5kIFB1Ymxpc2gKb246IFt3b3JrZmxvd19kaXNwYXRjaF0KZGVmYXVsdHM6CiAgcnVuOgogICAgc2hlbGw6IHB3c2gKam9iczoKICB1cGxvYWQtcGVzdGVyLXJlc3VsdHM6CiAgICBuYW1lOiBSdW4gUGVzdGVyIGFuZCB1cGxvYWQgcmVzdWx0cwogICAgcnVucy1vbjogdWJ1bnR1LWxhdGVzdAogICAgc3RlcHM6CiAgICAgIC0gdXNlczogYWN0aW9ucy9jaGVja291dEB2MwogICAgICAtIG5hbWU6IFRlc3Qgd2l0aCBQZXN0ZXIKICAgICAgICBzaGVsbDogcHdzaAogICAgICAgIHJ1bjogLi9UZXN0LU1vZHVsZS5wczEKICAgICAgLSBuYW1lOiBVcGxvYWQgdGVzdCByZXN1bHRzCiAgICAgICAgdXNlczogYWN0aW9ucy91cGxvYWQtYXJ0aWZhY3RAdjMKICAgICAgICB3aXRoOgogICAgICAgICAgbmFtZTogdWJ1bnR1LVVuaXQtVGVzdHMKICAgICAgICAgIHBhdGg6IFVuaXQuVGVzdHMueG1sCiAgICBpZjogJHt7IGFsd2F5cygpIH19CiAgcHVibGlzaC10by1nYWxsZXJ5OgogICAgbmFtZTogUHVibGlzaCB0byBQb3dlclNoZWxsIEdhbGxlcnkKICAgIHJ1bnMtb246IHVidW50dS1sYXRlc3QKICAgIHN0ZXBzOgogICAgICAtIHVzZXM6IGFjdGlvbnMvY2hlY2tvdXRAdjMKICAgICAgLSBuYW1lOiBQdWJsaXNoCiAgICAgICAgZW52OgogICAgICAgICAgR2l0SHViUEFUOiAke3sgc2VjcmV0cy5HaXRIdWJQQVQgfX0KICAgICAgICAgIE5VR0VUQVBJS0VZOiAke3sgc2VjcmV0cy5OVUdFVEFQSUtFWSB9fQogICAgICAgIHJ1bjogLi9idWlsZC5wczEgLVRhc2sgRGVwbG95"));
+  }
+  static [string] GetModuleDelWorkflowsyaml() {
+    # The b64str length is getting out of hand!!
+    # TODO" Use compressed base85 (https://github.com/alainQtec/Encodkit) instead of base64
+    return [Encoding]::UTF8.GetString([Convert]::FromBase64String("bmFtZTogRGVsZXRlIG9sZCB3b3JrZmxvdyBydW5zCm9uOgogIHdvcmtmbG93X2Rpc3BhdGNoOgogICAgaW5wdXRzOgogICAgICBkYXlzOgogICAgICAgIGRlc2NyaXB0aW9uOiAnRGF5cy13b3J0aCBvZiBydW5zIHRvIGtlZXAgZm9yIGVhY2ggd29ya2Zsb3cnCiAgICAgICAgcmVxdWlyZWQ6IHRydWUKICAgICAgICBkZWZhdWx0OiAnMCcKICAgICAgbWluaW11bV9ydW5zOgogICAgICAgIGRlc2NyaXB0aW9uOiAnTWluaW11bSBydW5zIHRvIGtlZXAgZm9yIGVhY2ggd29ya2Zsb3cnCiAgICAgICAgcmVxdWlyZWQ6IHRydWUKICAgICAgICBkZWZhdWx0OiAnMScKICAgICAgZGVsZXRlX3dvcmtmbG93X3BhdHRlcm46CiAgICAgICAgZGVzY3JpcHRpb246ICdOYW1lIG9yIGZpbGVuYW1lIG9mIHRoZSB3b3JrZmxvdyAoaWYgbm90IHNldCwgYWxsIHdvcmtmbG93cyBhcmUgdGFyZ2V0ZWQpJwogICAgICAgIHJlcXVpcmVkOiBmYWxzZQogICAgICBkZWxldGVfd29ya2Zsb3dfYnlfc3RhdGVfcGF0dGVybjoKICAgICAgICBkZXNjcmlwdGlvbjogJ0ZpbHRlciB3b3JrZmxvd3MgYnkgc3RhdGU6IGFjdGl2ZSwgZGVsZXRlZCwgZGlzYWJsZWRfZm9yaywgZGlzYWJsZWRfaW5hY3Rpdml0eSwgZGlzYWJsZWRfbWFudWFsbHknCiAgICAgICAgcmVxdWlyZWQ6IHRydWUKICAgICAgICBkZWZhdWx0OiAiQUxMIgogICAgICAgIHR5cGU6IGNob2ljZQogICAgICAgIG9wdGlvbnM6CiAgICAgICAgICAtICJBTEwiCiAgICAgICAgICAtIGFjdGl2ZQogICAgICAgICAgLSBkZWxldGVkCiAgICAgICAgICAtIGRpc2FibGVkX2luYWN0aXZpdHkKICAgICAgICAgIC0gZGlzYWJsZWRfbWFudWFsbHkKICAgICAgZGVsZXRlX3J1bl9ieV9jb25jbHVzaW9uX3BhdHRlcm46CiAgICAgICAgZGVzY3JpcHRpb246ICdSZW1vdmUgcnVucyBiYXNlZCBvbiBjb25jbHVzaW9uOiBhY3Rpb25fcmVxdWlyZWQsIGNhbmNlbGxlZCwgZmFpbHVyZSwgc2tpcHBlZCwgc3VjY2VzcycKICAgICAgICByZXF1aXJlZDogdHJ1ZQogICAgICAgIGRlZmF1bHQ6ICJBTEwiCiAgICAgICAgdHlwZTogY2hvaWNlCiAgICAgICAgb3B0aW9uczoKICAgICAgICAgIC0gIkFMTCIKICAgICAgICAgIC0gIlVuc3VjY2Vzc2Z1bDogYWN0aW9uX3JlcXVpcmVkLGNhbmNlbGxlZCxmYWlsdXJlLHNraXBwZWQiCiAgICAgICAgICAtIGFjdGlvbl9yZXF1aXJlZAogICAgICAgICAgLSBjYW5jZWxsZWQKICAgICAgICAgIC0gZmFpbHVyZQogICAgICAgICAgLSBza2lwcGVkCiAgICAgICAgICAtIHN1Y2Nlc3MKICAgICAgZHJ5X3J1bjoKICAgICAgICBkZXNjcmlwdGlvbjogJ0xvZ3Mgc2ltdWxhdGVkIGNoYW5nZXMsIG5vIGRlbGV0aW9ucyBhcmUgcGVyZm9ybWVkJwogICAgICAgIHJlcXVpcmVkOiBmYWxzZQoKam9iczoKICBkZWxfcnVuczoKICAgIHJ1bnMtb246IHVidW50dS1sYXRlc3QKICAgIHBlcm1pc3Npb25zOgogICAgICBhY3Rpb25zOiB3cml0ZQogICAgICBjb250ZW50czogcmVhZAogICAgc3RlcHM6CiAgICAgIC0gbmFtZTogRGVsZXRlIHdvcmtmbG93IHJ1bnMKICAgICAgICB1c2VzOiBNYXR0cmFrcy9kZWxldGUtd29ya2Zsb3ctcnVuc0B2MgogICAgICAgIHdpdGg6CiAgICAgICAgICB0b2tlbjogJHt7IGdpdGh1Yi50b2tlbiB9fQogICAgICAgICAgcmVwb3NpdG9yeTogJHt7IGdpdGh1Yi5yZXBvc2l0b3J5IH19CiAgICAgICAgICByZXRhaW5fZGF5czogJHt7IGdpdGh1Yi5ldmVudC5pbnB1dHMuZGF5cyB9fQogICAgICAgICAga2VlcF9taW5pbXVtX3J1bnM6ICR7eyBnaXRodWIuZXZlbnQuaW5wdXRzLm1pbmltdW1fcnVucyB9fQogICAgICAgICAgZGVsZXRlX3dvcmtmbG93X3BhdHRlcm46ICR7eyBnaXRodWIuZXZlbnQuaW5wdXRzLmRlbGV0ZV93b3JrZmxvd19wYXR0ZXJuIH19CiAgICAgICAgICBkZWxldGVfd29ya2Zsb3dfYnlfc3RhdGVfcGF0dGVybjogJHt7IGdpdGh1Yi5ldmVudC5pbnB1dHMuZGVsZXRlX3dvcmtmbG93X2J5X3N0YXRlX3BhdHRlcm4gfX0KICAgICAgICAgIGRlbGV0ZV9ydW5fYnlfY29uY2x1c2lvbl9wYXR0ZXJuOiA+LQogICAgICAgICAgICAke3sKICAgICAgICAgICAgICBzdGFydHNXaXRoKGdpdGh1Yi5ldmVudC5pbnB1dHMuZGVsZXRlX3J1bl9ieV9jb25jbHVzaW9uX3BhdHRlcm4sICdVbnN1Y2Nlc3NmdWw6JykKICAgICAgICAgICAgICAmJiAnYWN0aW9uX3JlcXVpcmVkLGNhbmNlbGxlZCxmYWlsdXJlLHNraXBwZWQnCiAgICAgICAgICAgICAgfHwgZ2l0aHViLmV2ZW50LmlucHV0cy5kZWxldGVfcnVuX2J5X2NvbmNsdXNpb25fcGF0dGVybgogICAgICAgICAgICB9fQogICAgICAgICAgZHJ5X3J1bjogJHt7IGdpdGh1Yi5ldmVudC5pbnB1dHMuZHJ5X3J1biB9fQ=="));
   }
 }
 class ParseResult {
