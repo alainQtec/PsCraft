@@ -1201,7 +1201,7 @@ class LocalPsModule {
 }
 class PsModule {
   [ValidateNotNullOrEmpty()] [String]$Name;
-  [ValidateNotNullOrEmpty()] [FileInfo]$Path;
+  [ValidateNotNullOrEmpty()] [DirectoryInfo]$Path;
   [Collection[PsModuleData]]$Data;
   [List[ModuleFolder]]$Folders;
   [List[ModuleFile]]$Files;
@@ -1751,28 +1751,14 @@ class PsModule {
   static [string] GetModuleLicenseText() {
     if (![PsModuleData]::LICENSE_TXT) {
       try {
-        # $mit = (Invoke-WebRequest https://opensource.apple.com/source/dovecot/dovecot-293/dovecot/COPYING.MIT -Verbose:$false -SkipHttpErrorCheck).Content
-        [PsModuleData]::LICENSE_TXT = [string](Invoke-WebRequest http://sam.zoy.org/wtfpl/COPYING -Verbose:$false -SkipHttpErrorCheck -ea Stop).Content
+        [PsModuleData]::LICENSE_TXT = [Encoding]::UTF8.GetString([Convert]::FromBase64String("ICAgICAgICAgICAgRE8gV0hBVCBUSEUgRlVDSyBZT1UgV0FOVCBUTyBQVUJMSUMgTElDRU5TRQ0KICAgICAgICAgICAgICAgICAgICBWZXJzaW9uIDIsIERlY2VtYmVyIDIwMDQNCg0KIDxDb3B5cmlnaHQ+DQoNCiBFdmVyeW9uZSBpcyBwZXJtaXR0ZWQgdG8gY29weSBhbmQgZGlzdHJpYnV0ZSB2ZXJiYXRpbSBvciBtb2RpZmllZA0KIGNvcGllcyBvZiB0aGlzIGxpY2Vuc2UgZG9jdW1lbnQsIGFuZCBjaGFuZ2luZyBpdCBpcyBhbGxvd2VkIGFzIGxvbmcNCiBhcyB0aGUgbmFtZSBpcyBjaGFuZ2VkLg0KDQogICAgICAgICAgICBETyBXSEFUIFRIRSBGVUNLIFlPVSBXQU5UIFRPIFBVQkxJQyBMSUNFTlNFDQogICBURVJNUyBBTkQgQ09ORElUSU9OUyBGT1IgQ09QWUlORywgRElTVFJJQlVUSU9OIEFORCBNT0RJRklDQVRJT04NCg0KICAwLiBZb3UganVzdCBETyBXSEFUIFRIRSBGVUNLIFlPVSBXQU5UIFRPLg0KDQo="));
       } catch {
-        Write-Warning "Failed to get license text from web. falling back to default"
-        [PsModuleData]::LICENSE_TXT = [string][StringBuilder]::new('
-              DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
-                      Version 2, December 2004
-
-        <Copyright>
-
-        Everyone is permitted to copy and distribute verbatim or modified
-        copies of this license document, and changing it is allowed as long
-        as the name is changed.
-
-                    DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
-          TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
-
-          0. You just DO WHAT THE FUCK YOU WANT TO.'
-        )
-      }
-      if (![string]::IsNullOrWhiteSpace([PsModuleData]::LICENSE_TXT)) {
-        [PsModuleData]::LICENSE_TXT = [PsModuleData]::LICENSE_TXT.Replace('2004 Sam Hocevar <sam@hocevar.net>', "$([datetime]::Now.Year) $([ModuleManager]::GetAuthorName()) <$([ModuleManager]::GetAuthorEmail())>")
+        Write-Warning "Failed to get license text. falling back to default"
+        # $mit = (Invoke-WebRequest https://opensource.apple.com/source/dovecot/dovecot-293/dovecot/COPYING.MIT -Verbose:$false -SkipHttpErrorCheck).Content
+        $TXT = [string](Invoke-WebRequest http://sam.zoy.org/wtfpl/COPYING -Verbose:$false -SkipHttpErrorCheck -ea Stop).Content
+        if (![string]::IsNullOrWhiteSpace($TXT)) {
+          [PsModuleData]::LICENSE_TXT = $TXT.Replace('2004 Sam Hocevar <sam@hocevar.net>', "$([datetime]::Now.Year) $([ModuleManager]::GetAuthorName()) <$([ModuleManager]::GetAuthorEmail())>")
+        }
       }
     }
     return [PsModuleData]::LICENSE_TXT
