@@ -43,7 +43,7 @@ function New-PsModule {
       if ([IO.Directory]::Exists($Module.Path.FullName)) {
         [string]$HostOs = [PsCraft]::GetHostOs()
         if ($HostOs -in ("Linux", "MacOSX")) {
-          &tree -a $Module.Path.FullName
+          &tree -a $Module.Path.FullName | Out-Host
         } elseif ($HostOs -eq "Windows") {
           # TODO: Use the Show-Tree Cmdlet : WIP in github.com/alainQtec/cliHelper.core
           # Here's a very half-ass version of it:
