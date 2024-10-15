@@ -38,11 +38,6 @@ class PsCraft : ModuleManager {
     }
     return $Module_Path
   }
-  static [void] CreateModuleFolderStructure([PsModule]$Module) {
-    $Module.Data.ForEach({ $_.FormatValue() })
-    #TODO: Do stuff before saving the module. (fs preparation & cheking requirements)
-    $Module.Save()
-  }
   static [LocalPsModule[]] Search([string]$Name) {
     [ValidateNotNullOrWhiteSpace()][string]$Name = $Name
     $res = @(); $AvailModls = Get-Module -ListAvailable -Name $Name -Verbose:$false -ErrorAction Ignore
@@ -59,7 +54,6 @@ class PsCraft : ModuleManager {
     return $res
   }
 }
-
 #endregion Classes
 
 $CurrentCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture.Name
@@ -71,7 +65,6 @@ $script:localizedData = if ($null -ne (Get-Command Get-LocalizedData -ErrorActio
 
 # Types that will be available to users when they import the module.
 $typestoExport = @(
-  [ModuleManager],
   [LocalPsModule],
   [PsModule],
   [PsCraft]
