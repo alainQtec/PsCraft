@@ -33,7 +33,6 @@ function Publish-PsModule {
   }
 
   end {
-    Write-Verbose "Done"
     return $ModuleOb
   }
 }
