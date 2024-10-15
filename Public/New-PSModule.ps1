@@ -24,27 +24,36 @@ function New-PsModule {
     # The FullPath Of your Module.
     [Parameter(Position = 1, ParameterSetName = '__AllParameterSets')]
     [ValidateNotNullOrEmpty()]
-    [string]$Path = $(Get-Variable -Name ExecutionContext -ValueOnly).SessionState.Path.CurrentFileSystemLocation.ProviderPath
+    [string]$Path = '.'
   )
 
   begin {
-    $ModuleOb = $null
+    $Module = $null; $Path = [PsCraft]::GetResolvedPath($Path)
   }
 
   process {
-    Write-Verbose "Creating Module ..."
+    Write-Host "[+] Creating Module $Name ..." # Todo: Add loading animation
     if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey("Path")) {
-      $ModuleOb = [PsModule]::Create($Name, $path)
+      $Module = [PsModule]::Create($Name, $path)
     } else {
-      $ModuleOb = [PsModule]::Create($Name)
+      $Module = [PsModule]::Create($Name)
     }
-    if ($PSCmdlet.ShouldProcess("", "", "Write Module folder Structure")) {
-      $ModuleOb.Save()
+    if ($PSCmdlet.ShouldProcess("", "", "Format and Write Module folder structure")) {
+      [void]$Module.save()
+      if ([IO.Directory]::Exists($Module.Path.FullName)) {
+        [string]$HostOs = [PsCraft]::GetHostOs()
+        if ($HostOs -in ("Linux", "MacOSX")) {
+          &tree -a $Module.Path.FullName
+        } elseif ($HostOs -eq "Windows") {
+          # TODO: Use the Show-Tree Cmdlet : WIP in github.com/alainQtec/cliHelper.core
+          # Here's a very half-ass version of it:
+          Get-ChildItem -Recurse $Path | ForEach-Object { $depth = ($_ | Split-Path -Parent | Split-Path -Leaf).Count; $(' ' * $depth * 2) + $_.Name | Write-Host -f Blue }
+        }
+      }
     }
   }
 
   end {
-    Write-Verbose "Done"
-    return $ModuleOb
+    return $Module
   }
 }
