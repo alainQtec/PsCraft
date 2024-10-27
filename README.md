@@ -18,6 +18,8 @@
   </p>
 </div>
 
+[result] by using [feature] for [whom]
+
 ## **Usage**
 
 - Install from Powershell Gallery:
@@ -26,9 +28,20 @@
   Install-Module PsCraft
   ```
 - then .. Create, test, build, deploy 🚀.
-  
-  ⤷ Ex: **You can create a [script module](https://learn.microsoft.com/en-us/powershell/scripting/developer/module/how-to-write-a-powershell-script-module) in unders 5 seconds!**
-    <video controls autoplay src="https://github.com/user-attachments/assets/c4373930-ef94-45aa-99de-26b7f5e6cb49" width="320" height="240" controls>Your browser does not support the video tag.</video>
+
+  ⤷ Ex: **You can create a
+  [script module](https://learn.microsoft.com/en-us/powershell/scripting/developer/module/how-to-write-a-powershell-script-module)
+  in unders 5 seconds!**
+  <!-- <video controls autoplay src="https://github.com/user-attachments/assets/c4373930-ef94-45aa-99de-26b7f5e6cb49" width="320" height="240" controls>Your
+  browser does not support the video tag.</video> -->
+  <div style="position: relative; width: 100%; padding-bottom: 56.25%">
+  <iframe src="https://www.youtube.com/embed/jgEYn-ldr30"
+          title="Web Load Testing with West Wind WebSurge 2" frameborder="0" allowfullscreen
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          style="position: absolute; width: 80%; height: 80%; border-radius:10px;">
+  </iframe>
+  </div>
+
   `Its only one comand`:
 
   ```PowerShell
@@ -61,9 +74,16 @@ For more usage read the [docs](/docs/Readme.md). they pretty easy!
 <p>This project is licensed under the MIT License - Read
  <a href="https://alain.MIT-license.org">License</a> for details. </p>
 
+## Sponsor
+
+If this tool helps you out you can give your support via
+[![paypal.me](https://ionicabizau.github.io/badges/paypal.svg)](https://www.paypal.com/donate/?hosted_button_id=3LA3EUKRU6722)
+
 ## Contributing
 
 Pull requests are welcome! You can also contribute to this module by
-[sharing opinions, and providing feedback](https://github.com/alainQtec/PsCraft/discussions/2).
+[sharing ideas, and providing feedback](https://github.com/alainQtec/PsCraft/discussions/2).
+
+[![Contributors](https://contrib.rocks/image?repo=alainQtec/PsCraft)](https://github.com/alainQtec/PsCraft/graphs/contributors)
 
 ![Alt](https://repobeats.axiom.co/api/embed/9cbc0ffce6f62ace082852045cd005b5ad61cebd.svg "Repobeats analytics image")
