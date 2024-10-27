@@ -54,7 +54,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
   [ValidateNotNullOrEmpty()][FileInfo]$dataFile # ..strings.psd1
   [ValidateNotNullOrEmpty()][FileInfo]$buildFile
   static [DirectoryInfo]$LocalPSRepo
-  static [Collection[PsObject]]$LocalizedData
+  static [PsObject]$LocalizedData
   static [PSCmdlet]$CallerCmdlet
   static [bool]$Useverbose
 
@@ -193,7 +193,8 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
         Clear-BuildEnvironment -Id $env:LAST_BUILD_ID
       }
     }
-    $Version = [ModuleManager]::LocalizedData.ModuleVersion; $BuildScriptPath = $null; $BuildNumber = $null; $ProjectName = $null; $BuildOutput = $null
+    $mdldata = Get-PsCraftData
+    $Version = $mdldata.ModuleVersion; $BuildScriptPath = $null; $BuildNumber = $null; $ProjectName = $null; $BuildOutput = $null
     if ($null -eq $Version) { throw [System.ArgumentNullException]::new('version', "Please make sure localizedData.ModuleVersion is not null.") }
     [void][ModuleManager]::WriteHeading("Set Build Variables for Version: $Version")
     Set-Env -Name ('{0}{1}' -f $Prefix, 'BuildStart') -Value $(Get-Date -Format o)
@@ -207,12 +208,12 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     Set-Variable -Name BuildNumber -Value ([Environment]::GetEnvironmentVariable($Prefix + 'BuildNumber')) -Scope Local -Force
     Set-Env -Name ('{0}{1}' -f $Prefix, 'BuildOutput') -Value $([Path]::Combine($BuildScriptPath, "BuildOutput"))
     Set-Variable -Name BuildOutput -Value ([Environment]::GetEnvironmentVariable($Prefix + 'BuildOutput')) -Scope Local -Force
-    Set-Env -Name ('{0}{1}' -f $Prefix, 'ProjectName') -Value [ModuleManager]::LocalizedData.ModuleName
+    Set-Env -Name ('{0}{1}' -f $Prefix, 'ProjectName') -Value $mdldata.ModuleName
     Set-Variable -Name ProjectName -Value ([Environment]::GetEnvironmentVariable($Prefix + 'ProjectName')) -Scope Local -Force
     Set-Env -Name ('{0}{1}' -f $Prefix, 'PsModulePath') -Value $([Path]::Combine($BuildOutput, $ProjectName, $BuildNumber))
     Set-Env -Name ('{0}{1}' -f $Prefix, 'PsModuleManifest') -Value $([Path]::Combine($BuildOutput, $ProjectName, $BuildNumber, "$ProjectName.psd1"))
     Set-Env -Name ('{0}{1}' -f $Prefix, 'ModulePath') -Value $(if (![string]::IsNullOrWhiteSpace($Env:PsModuleManifest)) { [Path]::GetDirectoryName($Env:PsModuleManifest) } else { [Path]::GetDirectoryName($BuildOutput) })
-    Set-Env -Name ('{0}{1}' -f $Prefix, 'ReleaseNotes') -Value [ModuleManager]::LocalizedData.ReleaseNotes
+    Set-Env -Name ('{0}{1}' -f $Prefix, 'ReleaseNotes') -Value $mdldata.ModuleName.ReleaseNotes
   }
   [void] SetBuildScript() {
     # .SYNOPSIS
@@ -513,7 +514,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     $BuildOutput = [Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildOutput')
     $this.ModulePath = [Path]::Combine($BuildOutput, $ModuleName, $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildNumber')))
     [void][ModuleManager]::WriteHeading("Publish to Local PsRepository")
-    $dependencies = [ModuleManager]::Read_Module_Manifest([Path]::Combine($this.ModulePath, "$([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')).psd1"), "RequiredModules")
+    $dependencies = Get-PsCraftData -Path [Path]::Combine($this.ModulePath, "$([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')).psd1") -PropertyName "RequiredModules"
     ForEach ($item in $dependencies) {
       $md = Get-Module $item -Verbose:$false; $mdPath = $md.Path | Split-Path
       Write-Verbose "Publish RequiredModule $item ..."
@@ -845,12 +846,6 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
   static [string] GetUnResolvedPath([System.Management.Automation.SessionState]$session, [string]$Path) {
     return $session.Path.GetUnresolvedProviderPathFromPSPath($Path)
   }
-  static [PSCustomObject] GetLocalizedData([string]$RootPath) {
-    [void][Directory]::SetCurrentDirectory($RootPath)
-    $psdFile = [FileInfo]::new([IO.Path]::Combine($RootPath, [System.Threading.Thread]::CurrentThread.CurrentCulture.Name, 'PsCraft.strings.psd1'))
-    if (!$psdFile.Exists) { throw [FileNotFoundException]::new('Unable to find the LocalizedData file!', $psdFile) }
-    return [scriptblock]::Create("$([IO.File]::ReadAllText($psdFile))").Invoke()
-  }
   static hidden [ModuleManager] _Create([string]$RootPath, [ref]$o) {
     $b = [ModuleManager]::new();
     [Net.ServicePointManager]::SecurityProtocol = [ModuleManager]::GetSecurityProtocol();
@@ -875,7 +870,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
       "Psake"
     )
     if (!$b.dataFile.Exists) { throw [FileNotFoundException]::new('Unable to find the LocalizedData file.', "$($b.dataFile.BaseName).strings.psd1") }
-    [ModuleManager]::LocalizedData = [scriptblock]::Create("$([IO.File]::ReadAllText($b.dataFile))").Invoke() # same as "Get-LocalizedData -DefaultUICulture 'en-US'" but the cmdlet is not always installed
+    [ModuleManager]::LocalizedData = Get-PsCraftData $b.dataFile
     $b.SetBuildVariables();
     if ($null -ne $o) {
       $o.value.GetType().GetProperties().ForEach({
@@ -910,7 +905,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     $result = [LocalPsModule]::new(); $result.Scope = 'LocalMachine'
     $ModulePsd1 = ($ModuleBase.GetFiles().Where({ $_.Name -like "$Name*" -and $_.Extension -eq '.psd1' }))[0]
     if ($null -eq $ModulePsd1) { return $result }
-    $result.Info = [ModuleManager]::Read_Module_Manifest($ModulePsd1.FullName)
+    $result.Info = Get-PsCraftData $ModulePsd1.FullName
     $result.Name = $ModulePsd1.BaseName
     $result.Psd1 = $ModulePsd1
     $result.Path = if ($result.Psd1.Directory.Name -as [version] -is [version]) { $result.Psd1.Directory.Parent } else { $result.Psd1.Directory }
@@ -960,10 +955,6 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     }
     return $_Module_Paths
   }
-  static [PsObject] Read_Module_Manifest([string]$Path) {
-    [ValidateNotNullOrWhiteSpace()][string]$Path = $Path
-    return [ModuleManager]::Read_Module_Manifest($Path, $null)
-  }
   static [ParseResult] ParseCode($Code) {
     # Parses the given code and returns an object with the AST, Tokens and ParseErrors
     Write-Debug "    ENTER: ConvertToAst $Code"
@@ -986,58 +977,6 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     $Visitor = [AliasVisitor]::new(); $Ast.Visit($Visitor)
     return $Visitor.Aliases
   }
-  static [PsObject] Read_Module_Manifest([string]$Path, [string]$PropertyName) {
-    if ([string]::IsNullOrWhiteSpace($PropertyName)) {
-      $null = Get-Item -Path $Path -ErrorAction Stop
-      $data = New-Object PsObject; $text = [IO.File]::ReadAllText("$Path")
-      $data = [scriptblock]::Create("$text").Invoke()
-      return $data
-    }
-    $Tokens = $Null; $ParseErrors = $Null
-    # search the Manifest root properties, and also the nested hashtable properties.
-    if ([IO.Path]::GetExtension($_) -ne ".psd1") { throw "Path must point to a .psd1 file" }
-    if (!(Test-Path $Path)) {
-      $Error_params = @{
-        ExceptionName    = "ItemNotFoundException"
-        ExceptionMessage = "Can't find file $Path"
-        ErrorId          = "PathNotFound,Metadata\Import-Metadata"
-        Caller           = [ModuleManager]::CallerCmdlet
-        ErrorCategory    = "ObjectNotFound"
-      }
-      Write-TerminatingError @Error_params
-    }
-    $AST = [Parser]::ParseFile($Path, [ref]$Tokens, [ref]$ParseErrors)
-    $KeyValue = $Ast.EndBlock.Statements
-    $KeyValue = @([ModuleManager]::FindHashKeyValue($PropertyName, $KeyValue))
-    if ($KeyValue.Count -eq 0) {
-      $Error_params = @{
-        ExceptionName    = "ItemNotFoundException"
-        ExceptionMessage = "Can't find '$PropertyName' in $Path"
-        ErrorId          = "PropertyNotFound,Metadata\Get-Metadata"
-        Caller           = [ModuleManager]::CallerCmdlet
-        ErrorCategory    = "ObjectNotFound"
-      }
-      Write-TerminatingError @Error_params
-    }
-    if ($KeyValue.Count -gt 1) {
-      $SingleKey = @($KeyValue | Where-Object { $_.HashKeyPath -eq $PropertyName })
-      if ($SingleKey.Count -gt 1) {
-        $Error_params = @{
-          ExceptionName    = "System.Reflection.AmbiguousMatchException"
-          ExceptionMessage = "Found more than one '$PropertyName' in $Path. Please specify a dotted path instead. Matching paths include: '{0}'" -f ($KeyValue.HashKeyPath -join "', '")
-          ErrorId          = "AmbiguousMatch,Metadata\Get-Metadata"
-          Caller           = [ModuleManager]::CallerCmdlet
-          ErrorCategory    = "InvalidArgument"
-        }
-        Write-TerminatingError @Error_params
-      } else {
-        $KeyValue = $SingleKey
-      }
-    }
-    $KeyValue = $KeyValue[0]
-    # $KeyValue.SafeGetValue()
-    return $KeyValue
-  }
   static [void] ValidatePath([string]$path) {
     $InvalidPathChars = [Path]::GetInvalidPathChars()
     $InvalidCharsRegex = "[{0}]" -f [regex]::Escape($InvalidPathChars)
@@ -1045,9 +984,9 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
       throw [InvalidEnumArgumentException]::new("The path string contains invalid characters.")
     }
   }
-  static [version] GetModuleVersion([string]$Psd1Path) {
-    $data = [ModuleManager]::Read_Module_Manifest($Psd1Path)
-    $_ver = $data.ModuleVersion; if ($null -eq $_ver) { $_ver = [version][IO.FileInfo]::New($Psd1Path).Directory.Name }
+  static [version] GetModuleVersion([string]$dataFile) {
+    $data = Get-PsCraftData -Path $dataFile
+    $_ver = $data.ModuleVersion; if ($null -eq $_ver) { $_ver = [version][IO.FileInfo]::New($dataFile).Directory.Name }
     return $_ver
   }
   static [bool] IsAdmin() {
@@ -1845,7 +1784,6 @@ class AliasVisitor : System.Management.Automation.Language.AstVisitor {
       }
 
       $this.Parameter = $null
-
       # If we have enough information, stop the visit
       # For -Scope global or Remove-Alias, we don't want to export these
       if ($this.Name -and $this.Command -eq "Remove-Alias") {
@@ -1924,7 +1862,6 @@ function New-Directory {
     [Array]::Reverse($nF); $nF | ForEach-Object { $_.Create() }
   }
 }
-
 function Write-BuildLog {
   [CmdletBinding()]
   param(
@@ -1986,7 +1923,6 @@ function Write-BuildLog {
     Write-Host -ForegroundColor $f $($fmtMsg -join "`n")
   }
 }
-
 function Write-TerminatingError {
   # .SYNOPSIS
   #   function to throw an errorrecord
