@@ -8,12 +8,8 @@
     <a href="https://github.com/alainQtec/PsCraft/actions/workflows/CI.yaml">
     <img src="https://github.com/alainQtec/PsCraft/actions/workflows/CI.yaml/badge.svg" alt="CI"/>
     </a>
-    <img src="https://github.com/alainQtec/PsCraft/actions/workflows/Publish.yaml/badge.svg" alt="Publish to PowerShell Gallery"/>
-    <a href="https://github.com/alainQtec/PsCraft/actions/workflows/Publish.yaml">
-    </a>
-    <a href="https://www.PowerShellGallery.com/packages/PsCraft">
-    <img src="https://img.shields.io/powershellgallery/dt/PsCraft.svg?style=flat&logo=powershell&color=blue"
-          alt="PowerShell Gallery" title="PowerShell Gallery" />
+    <a href="https://www.powershellgallery.com/packages/PsCraft">
+    <img src="https://img.shields.io/powershellgallery/dt/PsCraft.svg?style=flat&logo=powershell&color=blue" alt="PowerShell Gallery" title="PowerShell Gallery" />
     </a>
   </p>
 </div>
@@ -29,20 +25,16 @@
   ```
 - then .. Create, test, build, deploy 🚀.
 
-  ⤷ Ex: **You can create a
-  [script module](https://learn.microsoft.com/en-us/powershell/scripting/developer/module/how-to-write-a-powershell-script-module)
-  in unders 5 seconds!**
-  <!-- <video controls autoplay src="https://github.com/user-attachments/assets/c4373930-ef94-45aa-99de-26b7f5e6cb49" width="320" height="240" controls>Your
-  browser does not support the video tag.</video> -->
+  <p>⤷ <b>Ex</b>: You can create a <a href="https://learn.microsoft.com/en-us/powershell/scripting/developer/module/how-to-write-a-powershell-script-module">script module</a> in under 5 seconds!</p>
   <div style="position: relative; width: 100%; padding-bottom: 56.25%">
-  <iframe src="https://www.youtube.com/embed/jgEYn-ldr30"
+  <iframe src="https://www.youtube.com/embed/setMwctjFhQ"
           title="Web Load Testing with West Wind WebSurge 2" frameborder="0" allowfullscreen
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           style="position: absolute; width: 80%; height: 80%; border-radius:10px;">
   </iframe>
   </div>
 
-  `Its only one comand`:
+  Its one comand!
 
   ```PowerShell
   $module = New-PsModule "CliHelper.Core"
@@ -74,16 +66,17 @@ For more usage read the [docs](/docs/Readme.md). they pretty easy!
 <p>This project is licensed under the MIT License - Read
  <a href="https://alain.MIT-license.org">License</a> for details. </p>
 
-## Sponsor
+## Sponsor?
 
-If this tool helps you out you can give your support via
-[![paypal.me](https://ionicabizau.github.io/badges/paypal.svg)](https://www.paypal.com/donate/?hosted_button_id=3LA3EUKRU6722)
+If this tool saves your time and you want to support me;
+<a href="https://www.paypal.com/donate/?hosted_button_id=3LA3EUKRU6722">
+<img src="https://img.shields.io/static/v1?logo=paypal&label=PayPal&logoColor=white&message=Donate&color=00457C"/>
+</a>
 
-## Contributing
-
-Pull requests are welcome! You can also contribute to this module by
-[sharing ideas, and providing feedback](https://github.com/alainQtec/PsCraft/discussions/2).
+[You can also share ideas, and provide feedback](https://github.com/alainQtec/PsCraft/discussions/2).
 
 [![Contributors](https://contrib.rocks/image?repo=alainQtec/PsCraft)](https://github.com/alainQtec/PsCraft/graphs/contributors)
+
+Thank you.
 
 ![Alt](https://repobeats.axiom.co/api/embed/9cbc0ffce6f62ace082852045cd005b5ad61cebd.svg "Repobeats analytics image")
