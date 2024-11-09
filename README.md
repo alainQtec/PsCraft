@@ -1,4 +1,4 @@
-# <img align="right" src="docs/img/icon.png" width="200" height="200" alt="icon" />
+<h1> <img align="right" src="docs/img/icon.png" width="200" height="200" alt="icon" /></h1>
 
 <div align="Left">
   <a href="https://www.powershellgallery.com/packages/PsCraft"><b>PsCraft</b></a>
@@ -14,21 +14,21 @@
   </p>
 </div>
 
-[result] by using [feature] for [whom]
+<h2><b>Usage</b></h2>
 
-## **Usage**
+<ul>
+<li>Install from Powershell Gallery:<br>
 
-- Install from Powershell Gallery:
+```PowerShell
+Install-Module PsCraft
+```
 
-  ```PowerShell
-  Install-Module PsCraft
-  ```
-- then .. Create, test, build, deploy 🚀.
-
+</li>
+<li>then .. Create, test, build, deploy 🚀.</br>
   <p>⤷ <b>Ex</b>: You can create a <a href="https://learn.microsoft.com/en-us/powershell/scripting/developer/module/how-to-write-a-powershell-script-module">script module</a> in under 5 seconds!
   </p>
 
-  <div style="position: relative; width: 100%; padding-bottom: 56.25%">
+<div style="position: relative; width: 100%; padding-bottom: 56.25%">
     <iframe src="https://www.youtube.com/embed/setMwctjFhQ"
           title="Web Load Testing with West Wind WebSurge 2" frameborder="0" allowfullscreen
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -36,13 +36,16 @@
     </iframe>
   </div>
 
-  Its one comand!
+Its one comand!
 
-  ```PowerShell
-  $module = New-PsModule "CliHelper.Core"
-  ```
+```PowerShell
+$module = New-PsModule "CliHelper.Core"
+```
 
-  (づ ᴗ _ᴗ)づ haleluːjə!
+(づ ᴗ _ᴗ)づ haleluːjə!
+
+</li>
+</ul>
 
 For more usage read the [docs](/docs/Readme.md). they pretty easy!
 
