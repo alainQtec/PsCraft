@@ -64,10 +64,12 @@ For more usage read the [docs](/docs/Readme.md). they pretty easy!
 <p>This project is licensed under the MIT License - Read
  <a href="https://alain.MIT-license.org">License</a> for details. </p>
 
+<!--
 ## Sponsor?
 
 If this tool saves your time and you want to support me;
-<!-- <a href="https://www.paypal.com/donate/?hosted_button_id=3LA3EUKRU6722">
+
+<a href="https://www.paypal.com/donate/?hosted_button_id=3LA3EUKRU6722">
 <img src="https://img.shields.io/static/v1?logo=paypal&label=PayPal&logoColor=white&message=Donate&color=00457C"/>
 </a>
 -->
