@@ -32,7 +32,7 @@ function Find-InstalledModule {
     # The directory to search within for the module.
     [Parameter(Position = 1, Mandatory = $false, ParameterSetName = 'b')]
     [Alias('base', 'b')]
-    [DirectoryInfo]$ModuleBase,
+    [IO.DirectoryInfo]$ModuleBase,
 
     # All versions, even duplicates.
     [switch]$All
