@@ -26,13 +26,13 @@ function Publish-PsModule {
   )
 
   process {
-    $ModuleOb = [PsModule]::Create($Name, $ModulePath)
+    $Module = [PsModule]::Create($Name, $ModulePath)
     if ($PSCmdlet.ShouldProcess('', '', "Publishing")) {
-      $ModuleOb.Publish()
+      $Module.Publish()
     }
   }
 
   end {
-    return $ModuleOb
+    return $Module
   }
 }
