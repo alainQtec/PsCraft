@@ -193,7 +193,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
         Clear-BuildEnvironment -Id $env:LAST_BUILD_ID
       }
     }
-    $mdldata = Get-PsCraftData
+    $mdldata = Read-ModuleData
     $Version = $mdldata.ModuleVersion; $BuildScriptPath = $null; $BuildNumber = $null; $ProjectName = $null; $BuildOutput = $null
     if ($null -eq $Version) { throw [System.ArgumentNullException]::new('version', "Please make sure localizedData.ModuleVersion is not null.") }
     [void][ModuleManager]::WriteHeading("Set Build Variables for Version: $Version")
@@ -514,7 +514,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     $BuildOutput = [Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildOutput')
     $this.ModulePath = [Path]::Combine($BuildOutput, $ModuleName, $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildNumber')))
     [void][ModuleManager]::WriteHeading("Publish to Local PsRepository")
-    $dependencies = Get-PsCraftData -Path [Path]::Combine($this.ModulePath, "$([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')).psd1") -PropertyName "RequiredModules"
+    $dependencies = Read-ModuleData -Path [Path]::Combine($this.ModulePath, "$([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')).psd1") -PropertyName "RequiredModules"
     ForEach ($item in $dependencies) {
       $md = Get-Module $item -Verbose:$false; $mdPath = $md.Path | Split-Path
       Write-Verbose "Publish RequiredModule $item ..."
@@ -870,7 +870,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
       "Psake"
     )
     if (!$b.dataFile.Exists) { throw [FileNotFoundException]::new('Unable to find the LocalizedData file.', "$($b.dataFile.BaseName).strings.psd1") }
-    [ModuleManager]::LocalizedData = Get-PsCraftData $b.dataFile
+    [ModuleManager]::LocalizedData = Read-ModuleData $b.dataFile
     $b.SetBuildVariables();
     if ($null -ne $o) {
       $o.value.GetType().GetProperties().ForEach({
@@ -905,7 +905,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     $result = [LocalPsModule]::new(); $result.Scope = 'LocalMachine'
     $ModulePsd1 = ($ModuleBase.GetFiles().Where({ $_.Name -like "$Name*" -and $_.Extension -eq '.psd1' }))[0]
     if ($null -eq $ModulePsd1) { return $result }
-    $result.Info = Get-PsCraftData $ModulePsd1.FullName
+    $result.Info = Read-ModuleData $ModulePsd1.FullName
     $result.Name = $ModulePsd1.BaseName
     $result.Psd1 = $ModulePsd1
     $result.Path = if ($result.Psd1.Directory.Name -as [version] -is [version]) { $result.Psd1.Directory.Parent } else { $result.Psd1.Directory }
@@ -985,7 +985,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     }
   }
   static [version] GetModuleVersion([string]$dataFile) {
-    $data = Get-PsCraftData -Path $dataFile
+    $data = Read-ModuleData -Path $dataFile
     $_ver = $data.ModuleVersion; if ($null -eq $_ver) { $_ver = [version][IO.FileInfo]::New($dataFile).Directory.Name }
     return $_ver
   }
@@ -1860,110 +1860,6 @@ function New-Directory {
   if ($PSCmdlet.ShouldProcess("Creating Directory '$($p.FullName)' ...", '', '')) {
     while (!$p.Exists) { $nF += $p; $p = $p.Parent }
     [Array]::Reverse($nF); $nF | ForEach-Object { $_.Create() }
-  }
-}
-function Write-BuildLog {
-  [CmdletBinding()]
-  param(
-    [parameter(Mandatory, Position = 0, ValueFromRemainingArguments, ValueFromPipeline)]
-    [System.Object]$Message,
-
-    [parameter()]
-    [Alias('c', 'Command')]
-    [Switch]$Cmd,
-
-    [parameter()]
-    [Alias('w')]
-    [Switch]$Warning,
-
-    [parameter()]
-    [Alias('s', 'e')]
-    [Switch]$Severe,
-
-    [parameter()]
-    [Alias('x', 'nd', 'n')]
-    [Switch]$Clean
-  )
-  Begin {
-    ($f, $l) = switch ($true) {
-      $($PSBoundParameters.ContainsKey('Debug') -and $PSBoundParameters['Debug'] -eq $true) { 'Yellow', '##[debug]   '; break }
-      $($PSBoundParameters.ContainsKey('Verbose') -and $PSBoundParameters['Verbose'] -eq $true) { $(if ($Host.UI.RawUI.ForegroundColor -eq 'Gray') { 'White' } else { 'Gray' }), '##[Verbose] '; break }
-      $Severe { 'Red', '##[Error]   '; break }
-      $Warning { 'Yellow', '##[Warning] '; break }
-      $Cmd { 'Magenta', '##[Command] '; break }
-      Default {
-        $(if ($Host.UI.RawUI.ForegroundColor -eq 'Gray') { 'White' } else { 'Gray' }), '##[Info]    '
-      }
-    }
-  }
-  Process {
-    $fmtMsg = if ($Clean) {
-      $Message -split "[\r\n]" | Where-Object { $_ } | ForEach-Object {
-        $l + $_
-      }
-    } else {
-      $date = "$([ModuleManager]::GetElapsed()) "
-      if ($Cmd) {
-        $i = 0
-        $Message -split "[\r\n]" | Where-Object { $_ } | ForEach-Object {
-          $tag = if ($i -eq 0) {
-            'PS > '
-          } else {
-            '  >> '
-          }
-          $l + $date + $tag + $_
-          $i++
-        }
-      } else {
-        $Message -split "[\r\n]" | Where-Object { $_ } | ForEach-Object {
-          $l + $date + $_
-        }
-      }
-    }
-    Write-Host -ForegroundColor $f $($fmtMsg -join "`n")
-  }
-}
-function Write-TerminatingError {
-  # .SYNOPSIS
-  #   function to throw an errorrecord
-  # .DESCRIPTION
-  #   Used when we don't have built-in ThrowError (ie: $PowerShellversion -lt core-6.1.0-windows)
-  [CmdletBinding()]
-  [OutputType([ErrorRecord])]
-  param (
-    [parameter(Mandatory = $false)]
-    [AllowNull()]
-    [PSCmdlet]$Caller = $null,
-
-    [parameter(Mandatory = $true)]
-    [ValidateNotNullOrEmpty()]
-    [String]$ExceptionName,
-
-    [parameter(Mandatory = $true)]
-    [ValidateNotNullOrEmpty()]
-    [String]$ExceptionMessage,
-
-    [parameter(Mandatory = $false)]
-    [Object]$ExceptionObject = @{},
-
-    [parameter(Mandatory = $true)]
-    [ValidateNotNullOrEmpty()]
-    [String]$ErrorId,
-
-    [parameter(Mandatory = $true)]
-    [ValidateNotNull()]
-    [ErrorCategory]$ErrorCategory
-  )
-  process {
-    $exception = New-Object $ExceptionName $ExceptionMessage;
-    $errorRecord = [ErrorRecord]::new($exception, $ErrorId, $ErrorCategory, $ExceptionObject)
-  }
-  end {
-    if ($null -ne $Caller) {
-      $Caller.ThrowTerminatingError($errorRecord)
-    } else {
-      throw $errorRecord
-    }
   }
 }
 #endregion functions
