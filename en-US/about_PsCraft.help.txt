@@ -15,13 +15,7 @@ EXAMPLES
     correctly populated with all functions from the Public Folder.
 
     TODO: add updated module dir tree.
-    DemoModule
-      └─── 1.0.0
-          │   DemoModule.psd1
-          │   DemoModule.psm1
-          │
-          └───en-US
-                about_DemoModule.help.txt
+    Show-Tree -depth 5 -InColor
 
 KEYWORDS
       Module, Build, Task, Template
