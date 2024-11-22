@@ -48,12 +48,12 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
   [List[string]]$RequiredModules
   [ValidateNotNullOrWhiteSpace()][string]$ModuleName
   [ValidateNotNullOrWhiteSpace()][string]$BuildOutputPath # $RootPath/BouldOutput/$ModuleName
-  [ValidateNotNullOrEmpty()][DirectoryInfo]$RootPath # Module Project root
-  [ValidateNotNullOrEmpty()][DirectoryInfo]$TestsPath
+  [ValidateNotNullOrEmpty()][IO.DirectoryInfo]$RootPath # Module Project root
+  [ValidateNotNullOrEmpty()][IO.DirectoryInfo]$TestsPath
   [ValidateNotNullOrEmpty()][version]$ModuleVersion
   [ValidateNotNullOrEmpty()][FileInfo]$dataFile # ..strings.psd1
   [ValidateNotNullOrEmpty()][FileInfo]$buildFile
-  static [DirectoryInfo]$LocalPSRepo
+  static [IO.DirectoryInfo]$LocalPSRepo
   static [PsObject]$LocalizedData
   static [PSCmdlet]$CallerCmdlet
   static [bool]$Useverbose
@@ -160,9 +160,9 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
   }
   [PsObject] TestModule() {
     if ([string]::IsNullOrWhiteSpace($this.version)) {
-      $this.Moduleversion = [version[]][DirectoryInfo]::New([Path]::Combine($this.BuildOutputPath, $this.ModuleName)).GetDirectories().Name | Select-Object -Last 1
+      $this.Moduleversion = [version[]][IO.DirectoryInfo]::New([Path]::Combine($this.BuildOutputPath, $this.ModuleName)).GetDirectories().Name | Select-Object -Last 1
     }
-    $latest_build = [DirectoryInfo]::New((Resolve-Path ([Path]::Combine($this.BuildOutputPath, $this.ModuleName, $this.version)) -ErrorAction Stop))
+    $latest_build = [IO.DirectoryInfo]::New((Resolve-Path ([Path]::Combine($this.BuildOutputPath, $this.ModuleName, $this.version)) -ErrorAction Stop))
     $manifestFile = [IO.FileInfo]::New([Path]::Combine($latest_build.FullName, "$($this.ModuleName).psd1"));
     if (!$latest_build.Exists) { throw [DirectoryNotFoundException]::New("Directory $([Path]::GetRelativePath($this.ModulePath, $latest_build.FullName)) Not Found") }
     if (!$manifestFile.Exists) { throw [FileNotFoundException]::New("Could Not Find Module manifest File $([Path]::GetRelativePath($this.ModulePath, $manifestFile.FullName))") }
@@ -499,7 +499,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
       $old = $m | Select-Object ModuleBase, Version | Sort-Object -Unique version -Descending | Select-Object -Skip 1 -ExpandProperty ModuleBase
       $success += $old.ForEach({
           try { Remove-Module $_ -Force -Verbose:$false -ErrorAction Ignore; Remove-Item $_ -Recurse -Force -ea Ignore } catch { $null }
-          [Directory]::Exists("$_")
+          [IO.Directory]::Exists("$_")
         }
       )
     }; $IsSuccess = !$success.Contains($false)
@@ -547,7 +547,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
       Analysis = [List[PSCustomObject]]@()
       Errors   = [List[PSCustomObject]]@()
     }
-    if (![Directory]::Exists($module.Path.FullName)) {
+    if (![IO.Directory]::Exists($module.Path.FullName)) {
       Write-Warning "Module path '$($module.Path.FullName)' does not exist. Please run `$module.save() first."
       return $results
     }
@@ -586,7 +586,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     return $results
   }
   static [string] GetInstallPath([string]$Name, [string]$ReqVersion) {
-    $p = [DirectoryInfo][IO.Path]::Combine(
+    $p = [IO.DirectoryInfo][IO.Path]::Combine(
       $(if (!(Get-Variable -Name IsWindows -ErrorAction Ignore) -or $(Get-Variable IsWindows -ValueOnly)) {
           $_versionTable = Get-Variable PSVersionTable -ValueOnly
           $module_folder = if ($_versionTable.ContainsKey('PSEdition') -and $_versionTable.PSEdition -eq 'Core') { 'PowerShell' } else { 'WindowsPowerShell' }
@@ -854,7 +854,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     [Environment]::SetEnvironmentVariable('RUN_ID', $(if ([bool][int]$env:IsAC -or $env:CI -eq "true") { [Environment]::GetEnvironmentVariable('GITHUB_RUN_ID') }else { [Guid]::NewGuid().Guid.substring(0, 21).replace('-', [string]::Join('', (0..9 | Get-Random -Count 1))) + '_' }), [System.EnvironmentVariableTarget]::Process);
     [ModuleManager]::Useverbose = (Get-Variable VerbosePreference -ValueOnly -Scope global) -eq "continue"
     $_RootPath = [ModuleManager]::GetUnresolvedPath($RootPath);
-    if ([Directory]::Exists($_RootPath)) { $b.RootPath = $_RootPath }else { throw [DirectoryNotFoundException]::new("RootPath $RootPath Not Found") }
+    if ([IO.Directory]::Exists($_RootPath)) { $b.RootPath = $_RootPath }else { throw [DirectoryNotFoundException]::new("RootPath $RootPath Not Found") }
     $b.ModuleName = [Path]::GetDirectoryName($_RootPath);
     # $currentContext = [EngineIntrinsics](Get-Variable ExecutionContext -ValueOnly);
     # $b.SessionState = $currentContext.SessionState; $b.Host = $currentContext.Host
@@ -887,8 +887,8 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     if ($Name.Contains([string][Path]::DirectorySeparatorChar)) {
       $rName = [ModuleManager]::GetResolvedPath($Name)
       $bName = [Path]::GetDirectoryName($rName)
-      if ([Directory]::Exists($rName)) {
-        return [ModuleManager]::FindLocalPsModule($bName, [Directory]::GetParent($rName))
+      if ([IO.Directory]::Exists($rName)) {
+        return [ModuleManager]::FindLocalPsModule($bName, [IO.Directory]::GetParent($rName))
       }
     }
     return [ModuleManager]::FindLocalPsModule($Name, "", $null)
@@ -899,9 +899,9 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
   static [LocalPsModule] FindLocalPsModule([string]$Name, [version]$version) {
     return [ModuleManager]::FindLocalPsModule($Name, "", $version)
   }
-  static [LocalPsModule] FindLocalPsModule([string]$Name, [DirectoryInfo]$ModuleBase) {
+  static [LocalPsModule] FindLocalPsModule([string]$Name, [IO.DirectoryInfo]$ModuleBase) {
     [ValidateNotNullOrWhiteSpace()][string]$Name = $Name
-    [ValidateNotNullOrEmpty()][DirectoryInfo]$ModuleBase = $ModuleBase
+    [ValidateNotNullOrEmpty()][IO.DirectoryInfo]$ModuleBase = $ModuleBase
     $result = [LocalPsModule]::new(); $result.Scope = 'LocalMachine'
     $ModulePsd1 = ($ModuleBase.GetFiles().Where({ $_.Name -like "$Name*" -and $_.Extension -eq '.psd1' }))[0]
     if ($null -eq $ModulePsd1) { return $result }
@@ -916,7 +916,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
   }
   static [LocalPsModule] FindLocalPsModule([string]$Name, [string]$scope, [version]$version) {
     $Module = $null; [ValidateNotNullOrWhiteSpace()][string]$Name = $Name
-    $PsModule_Paths = $([ModuleManager]::GetModulePaths($(if ([string]::IsNullOrWhiteSpace($scope)) { "LocalMachine" }else { $scope })).ForEach({ [DirectoryInfo]::New("$_") }).Where({ $_.Exists })).GetDirectories().Where({ $_.Name -eq $Name });
+    $PsModule_Paths = $([ModuleManager]::GetModulePaths($(if ([string]::IsNullOrWhiteSpace($scope)) { "LocalMachine" }else { $scope })).ForEach({ [IO.DirectoryInfo]::New("$_") }).Where({ $_.Exists })).GetDirectories().Where({ $_.Name -eq $Name });
     if ($PsModule_Paths.count -gt 0) {
       $Get_versionDir = [scriptblock]::Create('param([IO.DirectoryInfo[]]$direcrory) return ($direcrory | ForEach-Object { $_.GetDirectories() | Where-Object { $_.Name -as [version] -is [version] } })')
       $has_versionDir = $Get_versionDir.Invoke($PsModule_Paths).count -gt 0
@@ -1017,11 +1017,11 @@ class ModuleFile {
 }
 class ModuleFolder {
   [ValidateNotNullOrEmpty()][string]$Name
-  [ValidateNotNullOrEmpty()][DirectoryInfo]$value
+  [ValidateNotNullOrEmpty()][IO.DirectoryInfo]$value
   ModuleFolder([string]$Name, [string]$value) {
-    $this.Name = $Name; $this.value = [DirectoryInfo]::new($value)
+    $this.Name = $Name; $this.value = [IO.DirectoryInfo]::new($value)
   }
-  ModuleFolder([string]$Name, [DirectoryInfo]$value) {
+  ModuleFolder([string]$Name, [IO.DirectoryInfo]$value) {
     $this.Name = $Name
     $this.value = $value
   }
@@ -1088,7 +1088,7 @@ class LocalPsModule {
   [ValidateNotNullOrEmpty()][FileInfo]$Psd1
   [ValidateNotNullOrEmpty()][version]$version
   [ValidateNotNullOrWhiteSpace()][string]$Name
-  [ValidateNotNullOrEmpty()][DirectoryInfo]$Path
+  [ValidateNotNullOrEmpty()][IO.DirectoryInfo]$Path
   [bool]$HasVersiondirs = $false
   [bool]$IsReadOnly = $false
   [PsObject]$Info = $null
@@ -1140,7 +1140,7 @@ class LocalPsModule {
 }
 class PsModule {
   [ValidateNotNullOrEmpty()] [String]$Name;
-  [ValidateNotNullOrEmpty()] [DirectoryInfo]$Path;
+  [ValidateNotNullOrEmpty()] [IO.DirectoryInfo]$Path;
   [Collection[PsModuleData]]$Data;
   [List[ModuleFolder]]$Folders;
   [List[ModuleFile]]$Files;
@@ -1152,7 +1152,7 @@ class PsModule {
   PsModule([string]$Name) {
     [PsModule]::Create($Name, $null, $null, [ref]$this)
   }
-  PsModule([string]$Name, [DirectoryInfo]$Path) {
+  PsModule([string]$Name, [IO.DirectoryInfo]$Path) {
     [PsModule]::Create($Name, $Path, @(), [ref]$this)
   }
   # TODO: WIP
@@ -1165,7 +1165,7 @@ class PsModule {
   static [PsModule] Create([string]$Name, [string]$Path) {
     $b = [ModuleManager]::GetUnResolvedPath($Path)
     $p = [IO.Path]::Combine($b, $Name);
-    $d = [DirectoryInfo]::new($p)
+    $d = [IO.DirectoryInfo]::new($p)
     if (![IO.Directory]::Exists($d)) {
       return [PsModule]::new($d.BaseName, $d.Parent)
     } else {
@@ -1173,7 +1173,7 @@ class PsModule {
       return [PsModule]::Load($d)
     }
   }
-  static hidden [PsModule] Create([string]$Name, [DirectoryInfo]$Path, [Array]$Config, [ref]$o) {
+  static hidden [PsModule] Create([string]$Name, [IO.DirectoryInfo]$Path, [Array]$Config, [ref]$o) {
     if ($null -ne $Config) {
       # Config includes:
       # - Build steps
@@ -1236,10 +1236,10 @@ class PsModule {
     $this.Data = [PsModule]::CreateModuleData([string]$this.Name, [string]$this.Path, [ModuleFile[]]$this.Files);
   }
   static [Collection[PsModuleData]] CreateModuleData([string]$Name, [string]$Path, [List[ModuleFile]]$Files) {
-    # static [PsModuleData] Create([string]$Name, [DirectoryInfo]$Psdroot) {
+    # static [PsModuleData] Create([string]$Name, [IO.DirectoryInfo]$Psdroot) {
     #   return [PsModuleData]::Create($Name, [version]::new(0, 1, 0), $Psdroot)
     # }
-    # static [PsModuleData] Create([string]$Name, [version]$Version, [DirectoryInfo]$Psdroot) {
+    # static [PsModuleData] Create([string]$Name, [version]$Version, [IO.DirectoryInfo]$Psdroot) {
     #   $o = [PsModuleData]::new(); $o.set_props([PSCustomObject]@{ Name = $Name; Version = $Version; Path = [path]::Combine($Psdroot.FullName, "$Name.psd1") })
     #   return $o
     # }
@@ -1630,9 +1630,12 @@ class PsModule {
     New-ModuleManifest @PM
     Write-Host "Done" -ForegroundColor Green
   }
-  [PsModule] static Load([string]$Name, $Path) {
+  static [PsModule] Load([string]$Path) {
+    return [PsModule]::Load($null, $Path)
+  }
+  static [PsModule] Load([string]$Name, [string]$Path) {
     # TODO: Add some Module Loading code Here
-    throw "sorry NOT IMPLEMENTED YET"
+    throw "[PsModule]::Load(...) NOT IMPLEMENTED YET (WIP)"
   }
   [PsObject[]] GetFiles() {
     $KH = @{}; $this.Data.Where({ $_.Attributes -notcontains "ManifestKey" -and $_.Attributes -contains "FileContent" }).ForEach({ $KH[$_.Key] = $_.Value })
@@ -1646,7 +1649,7 @@ class PsModule {
   [void] Test() {
     # $this.Save()
     # .then run tests
-    throw "sorry NOT IMPLEMENTED YET"
+    throw "`$psmodule.Test() is NOT IMPLEMENTED YET (WIP)"
   }
   [void] Publish() {
     $this.Publish('LocalRepo', [Path]::GetDirectoryName($Pwd))
@@ -1854,9 +1857,9 @@ function New-Directory {
     [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'str')]
     [ValidateNotNullOrEmpty()][string]$Path,
     [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'dir')]
-    [ValidateNotNullOrEmpty()][DirectoryInfo]$Dir
+    [ValidateNotNullOrEmpty()][IO.DirectoryInfo]$Dir
   )
-  $nF = @(); $p = if ($PSCmdlet.ParameterSetName.Equals('str')) { [DirectoryInfo]::New($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)) } else { $Dir }
+  $nF = @(); $p = if ($PSCmdlet.ParameterSetName.Equals('str')) { [IO.DirectoryInfo]::New($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)) } else { $Dir }
   if ($PSCmdlet.ShouldProcess("Creating Directory '$($p.FullName)' ...", '', '')) {
     while (!$p.Exists) { $nF += $p; $p = $p.Parent }
     [Array]::Reverse($nF); $nF | ForEach-Object { $_.Create() }
