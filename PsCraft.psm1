@@ -49,8 +49,8 @@ class PsCraft : ModuleManager {
         if ($null -eq $m) {
           $res += [PsCraft]::FindLocalPsModule($Name, 'LocalMachine', $null); continue
         }
-        if ([Directory]::Exists($m)) {
-          $res += [PsCraft]::FindLocalPsModule($Name, [DirectoryInfo]::New($m))
+        if ([IO.Directory]::Exists($m)) {
+          $res += [PsCraft]::FindLocalPsModule($Name, [IO.DirectoryInfo]::New($m))
         }
       }
     }
@@ -61,6 +61,7 @@ class PsCraft : ModuleManager {
 
 # Types that will be available to users when they import the module.
 $typestoExport = @(
+  [moduleManager],
   [LocalPsModule],
   [PsModule],
   [PsCraft]
@@ -94,7 +95,7 @@ $MyInvocation.MyCommand.ScriptBlock.Module.OnRemove = {
 
 $scripts = @();
 $Public = Get-ChildItem "$PSScriptRoot/Public" -Filter "*.ps1" -Recurse -ErrorAction SilentlyContinue
-$scripts += Get-ChildItem "$PSScriptRoot/Private" -Filter "*.ps1" -Recurse -Recurse -ErrorAction SilentlyContinue
+$scripts += Get-ChildItem "$PSScriptRoot/Private" -Filter "*.ps1" -Recurse -ErrorAction SilentlyContinue
 $scripts += $Public
 
 foreach ($file in $scripts) {
@@ -112,4 +113,4 @@ $Param = @{
   Cmdlet   = '*'
   Alias    = '*'
 }
-Export-ModuleMember @Param -Verbose
+Export-ModuleMember @Param
