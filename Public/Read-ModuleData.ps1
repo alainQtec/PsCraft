@@ -1,4 +1,13 @@
 ﻿function Read-ModuleData {
+  # .SYNOPSIS
+  #   Reads a specific value from a PowerShell metdata file (e.g. a module manifest)
+  # .DESCRIPTION
+  #   By default Get-ModuleManifest gets the ModuleVersion, but it can read any key in the metadata file
+  # .LINK
+  #   https://github.com/alainQtec/PsCraft/blob/main/Public/Read-ModuleData.ps1
+  # .EXAMPLE
+  #   Read-ModuleData .
+  #   Reads the Moduledata from the current directory, assumes that the module name is the same as the directory name
   [CmdletBinding()]
   [OutputType([PsObject])]
   param (
