@@ -7,7 +7,7 @@
   [OutputType([System.Management.Automation.ErrorRecord])]
   param (
     [parameter(Mandatory = $false)]
-    [AllowNull()][PSCmdlet]
+    [AllowNull()][System.Management.Automation.PSCmdlet]
     $Caller = $null,
 
     [parameter(Mandatory = $true)]
