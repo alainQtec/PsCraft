@@ -415,7 +415,7 @@ Begin {
           }
         }
       }
-      $data = Read-Moduledata
+      $data = PsCraft\Read-ModuleData
       $Version = $data.ModuleVersion
       if ($null -eq $Version) { throw [System.ArgumentNullException]::new('version', "Please make sure localizedData.ModuleVersion is not null.") }
       Write-Heading "Set Build Variables for Version: $Version"
