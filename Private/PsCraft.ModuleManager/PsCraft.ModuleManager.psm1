@@ -193,7 +193,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
         Clear-BuildEnvironment -Id $env:LAST_BUILD_ID
       }
     }
-    $mdldata = Read-ModuleData
+    $mdldata = PsCraft\Read-ModuleData
     $Version = $mdldata.ModuleVersion; $BuildScriptPath = $null; $BuildNumber = $null; $ProjectName = $null; $BuildOutput = $null
     if ($null -eq $Version) { throw [System.ArgumentNullException]::new('version', "Please make sure localizedData.ModuleVersion is not null.") }
     [void][ModuleManager]::WriteHeading("Set Build Variables for Version: $Version")
