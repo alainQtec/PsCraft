@@ -62,3 +62,13 @@ Add-GUI -Script MyNewScript.ps1
 ---
 
 ## NOTE: [WIP] ...More stuff comming.
+
+<!--
+remove 0xb
+
+ ls -File -Recurse -Force | ForEach-Object { &sed 's/\x0B//g' $_.FullName > $([IO.Path::Combine($_.Directory.FullName, $_.Name.Replace($_.BaseName, ($_.BaseName + "_clean_")))) };
+
+(ls -File -Recurse -Force).Where({ !$_.BaseName.contains("_clean_") }).ForEach({ Remove-Item $_ -Verbose });
+
+(ls -File -Recurse -Force).ForEach({ Rename-Item $_.FullName -NewName $_.Name.Replace("_clean_", "") -Verbose })
+ -->

@@ -1,14 +1,5 @@
-using namespace System.IO
-using module Private/PsCraft.GuiBuilder
-using module Private/PsCraft.CodeSigner
 using module Private/PsCraft.ModuleManager
-using namespace System.Collections.Generic
-using namespace system.management.automation
-using namespace System.Collections.ObjectModel
-using namespace System.Management.Automation.Language
-Import-Module cliHelper.core -Verbose:$false
 
-#region    Classes
 # .SYNOPSIS
 #  PsCraft: the giga-chad module builder and manager.
 # .EXAMPLE
@@ -57,7 +48,6 @@ class PsCraft : ModuleManager {
     return $res
   }
 }
-#endregion Classes
 
 # Types that will be available to users when they import the module.
 $typestoExport = @(

@@ -1,4 +1,4 @@
-<h1> <img align="right" src="docs/img/icon.png" width="200" height="200" alt="icon" /></h1>
+<h1> <img align="right" src="https://github.com/user-attachments/assets/0584a9ee-99a2-4b4b-bfa8-47285f0abdde" width="200" height="200" alt="icon" /></h1>
 
 <div align="Left">
   <a href="https://www.powershellgallery.com/packages/PsCraft"><b>PsCraft</b></a>
@@ -27,7 +27,7 @@ Install-Module PsCraft
 <li>then .. Create, test, build, deploy 🚀.</br>
   <p>⤷ <b>Ex</b>: You can create a <a href="https://learn.microsoft.com/en-us/powershell/scripting/developer/module/how-to-write-a-powershell-script-module">script module</a> in under 5 seconds!</p>
 
-  https://github.com/user-attachments/assets/2a8c8688-2483-4a44-8801-37fde5016306
+https://github.com/user-attachments/assets/2a8c8688-2483-4a44-8801-37fde5016306
 
 Its one comand!
 

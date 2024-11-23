@@ -1,4 +1,4 @@
-using namespace System.IO
+﻿using namespace System.IO
 using namespace System.Text
 using namespace System.Threading
 using namespace system.reflection
@@ -8,7 +8,7 @@ using namespace System.Management.Automation
 using namespace System.Collections.ObjectModel
 using namespace System.Runtime.InteropServices
 using namespace System.Management.Automation.Language
-Using module PSScriptAnalyzer
+Import-Module cliHelper.core -Verbose:$false
 
 enum SaveOptions {
   AcceptAllChangesAfterSave # After changes are saved, we resets change tracking.
@@ -1847,22 +1847,3 @@ class AliasVisitor : System.Management.Automation.Language.AstVisitor {
     return $this
   }
 }
-#endregion Classes
-
-#region    functions
-
-function New-Directory {
-  [CmdletBinding(SupportsShouldProcess = $true, DefaultParameterSetName = 'str')]
-  param (
-    [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'str')]
-    [ValidateNotNullOrEmpty()][string]$Path,
-    [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'dir')]
-    [ValidateNotNullOrEmpty()][IO.DirectoryInfo]$Dir
-  )
-  $nF = @(); $p = if ($PSCmdlet.ParameterSetName.Equals('str')) { [IO.DirectoryInfo]::New($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)) } else { $Dir }
-  if ($PSCmdlet.ShouldProcess("Creating Directory '$($p.FullName)' ...", '', '')) {
-    while (!$p.Exists) { $nF += $p; $p = $p.Parent }
-    [Array]::Reverse($nF); $nF | ForEach-Object { $_.Create() }
-  }
-}
-#endregion functions

@@ -266,6 +266,13 @@ ServiceFabricBackup/
 *.ldf
 *.ndf
 
+# Business Intelligence projects
+*.rdl.data
+*.bim.layout
+*.bim_*.settings
+*.rptproj.rsuser
+*- [Bb]ackup.rdl
+
 # Microsoft Fakes
 FakesAssemblies/
 
@@ -375,18 +382,30 @@ FodyWeavers.xsd
 !.vscode/extensions.json
 *.code-workspace
 
+# Local History for Visual Studio Code
 .history/
 
+# Windows Installer files from build outputs
 *.cab
 *.msi
 *.msix
 *.msm
 *.msp
+
+# JetBrains Rider
 *.sln.iml
 .fn
+
+# dotEnv
 .env
-.rf/
+.env.local
+
+# Generated files:
 BuildOutput/
 LocalPSRepo/
-Private/ModuleManager/
 Tests/results.xml
+Tests/Resources/
+Tests/PsImport.Module.Tests.ps1
+Tests/PsImport.Features.Tests.ps1
+Tests/PsImport.Intergration.Tests.ps1
+Tests/Resources/Test-GitHubScript.ps1

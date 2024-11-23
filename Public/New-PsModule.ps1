@@ -1,4 +1,4 @@
-function New-PsModule {
+﻿function New-PsModule {
   # .SYNOPSIS
   #   Creates a PsModule Object, that can be saved to the disk.
   # .DESCRIPTION
@@ -93,7 +93,7 @@ function New-PsModule {
       ).ForEach({
           $n = $_; $isBound = $PSCmdlet.MyInvocation.BoundParameters.ContainsKey($n)
           $value = if ($isBound) { $PSCmdlet.MyInvocation.BoundParameters[$n] } else { Get-Variable -Name $n -ValueOnly }
-          Write-Verbose "$n = $value $(if(!$isBound){'(default)'})"
+          # Write-Verbose "$n = $value $(if(!$isBound){'(default)'})"
           if ($null -ne $value) {
             #ie: [void]$Module.Data.Where({ $_.Key -eq $n }).set_Value($value) # but faster.
             [void]$Module.SetValue($_, $value)

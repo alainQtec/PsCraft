@@ -1,4 +1,4 @@
-﻿function script:Read-ModuleData {
+﻿function Read-ModuleData {
   [CmdletBinding()]
   [OutputType([PsObject])]
   param (

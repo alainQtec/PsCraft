@@ -1,6 +1,7 @@
-﻿@{
+﻿
+@{
   ModuleName    = 'PsCraft'
-  ModuleVersion = [version]::new(0, 1, 0)
+  ModuleVersion = [version]'0.1.0'
   ReleaseNotes  = '# Release Notes
 
 First release
@@ -33,5 +34,5 @@ First release
    # Otherwise, provide the path to the manifest:
    Import-Module -Path Path\to\PsCraft\`versionToDeploy`\PsCraft.psd1
    ```
-'
+  '
 }
