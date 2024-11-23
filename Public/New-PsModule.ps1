@@ -16,6 +16,7 @@
   # .OUTPUTS
   #   [PsModule]
   [CmdletBinding(SupportsShouldProcess, DefaultParametersetName = 'ByName')]
+  [OutputType([PsModule])]
   param (
     # The Name Of your Module; note that it Should always match BaseName of its path.
     [Parameter(Position = 0, ParameterSetName = 'ByName')]
