@@ -1,3 +1,4 @@
+using module Private/PsCraft.CodeSigner
 using module Private/PsCraft.ModuleManager
 
 # .SYNOPSIS
