@@ -28,7 +28,6 @@
     $ModuleName = [IO.Directory]::GetParent([IO.Directory]::GetFiles((Get-Location))[0]).Name
   )
   begin {
-    Write-Verbose "mn: $ModuleName"
     if (!$PSBoundParameters.ContainsKey("Path")) {
       $CultureName = [System.Threading.Thread]::CurrentThread.CurrentCulture.Name
       $Path = [IO.Path]::Combine($RootPath, $CultureName, "$ModuleName.strings.psd1")
@@ -52,7 +51,7 @@
       return $data
     }
     $Tokens = $Null; $ParseErrors = $Null
-    # search the Manifest root properties, and also the nested hashtable properties.
+    # Search the Manifest root properties, and also the nested hashtable properties.
     if ([IO.Path]::GetExtension($_) -ne ".psd1") { throw "Path must point to a .psd1 file" }
     $AST = [Parser]::ParseFile($Path, [ref]$Tokens, [ref]$ParseErrors)
     $KeyValue = $Ast.EndBlock.Statements
