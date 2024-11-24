@@ -77,86 +77,30 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     Remove-Module -Name $this.Name -Force -ErrorAction SilentlyContinue
   }
   [void] BuildModule() {
-    [void][ModuleManager]::ShowEnvSummary("Preparing build environment")
-    $this.setBuildVariables()
-    [Console]::WriteLine()
-    $sc = {
-      $script:DefaultParameterValues = @{
-        '*-Module:Verbose'           = $false
-        'Import-Module:ErrorAction'  = 'Stop'
-        'Import-Module:Force'        = $true
-        'Import-Module:Verbose'      = $false
-        'Install-Module:ErrorAction' = 'Stop'
-        'Install-Module:Scope'       = 'CurrentUser'
-        'Install-Module:Verbose'     = $false
-      }
-    }
-    Write-BuildLog -Command ($sc.ToString() -join "`n"); $sc.Invoke()
-    [void][ModuleManager]::WriteHeading("Prepare package feeds")
-    [Console]::WriteLine()
-    if ($null -eq (Get-PSRepository -Name PSGallery -ErrorAction Ignore)) {
-      Unregister-PSRepository -Name PSGallery -Verbose:$false -ErrorAction Ignore
-      Register-PSRepository -Default -InstallationPolicy Trusted
-    }
-    if ((Get-PSRepository -Name PSGallery).InstallationPolicy -ne 'Trusted') {
-      Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Verbose:$false
-    }
-    # if ((Get-Command dotnet -ErrorAction Ignore) -and ([bool](Get-Variable -Name IsWindows -ErrorAction Ignore) -and !$(Get-Variable IsWindows -ValueOnly))) {
-    #     dotnet dev-certs https --trust
+    Build-Module -Module $this.ModuleName -Path $this.Path -Task Test
+    # [void][ModuleManager]::ShowEnvSummary("Preparing build environment")
+    # $this.setBuildVariables()
+    # [Console]::WriteLine()
+    # [ModuleManager]::RequiredModules | Resolve-Module -UpdateModule -Verbose
+    # [Console]::WriteLine()
+    # BuildLog    "Module Requirements Successfully resolved."
+    # [ModuleManager]::ShowEnvSummary("Build started")
+    # $null = Set-Content -Path ($this.buildFile.FullName) -Value $this.BuildScript
+    # [void][ModuleManager]::WriteHeading("Invoking psake with task list: [ $([ModuleManager]::TaskList -join ', ') ]")
+    # $psakeParams = @{
+    #   nologo    = $true
+    #   buildFile = $this.buildFile.FullName
+    #   taskList  = [ModuleManager]::TaskList
     # }
-    Get-PackageProvider -Name Nuget -ForceBootstrap -Verbose:$false
-    if (!(Get-PackageProvider -Name Nuget)) {
-      Install-PackageProvider -Name NuGet -Force | Out-Null
-    }
-    $null = Import-PackageProvider -Name NuGet -Force
-    ForEach ($Name in @('PackageManagement', 'PowerShellGet')) {
-      $(Get-Variable Host -ValueOnly).UI.WriteLine(); Resolve-Module -Name $Name -ro -u -Verbose:$script:DefaultParameterValues['*-Module:Verbose'] -ErrorAction Stop
-    }
-    $build_sys = [Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildSystem');
-    $lastCommit = git log - 1 --pretty = % B
-    [void][ModuleManager]::WriteHeading("Current build system is $build_sys")
-    [void][ModuleManager]::WriteHeading("Finalizing build Prerequisites and Resolving dependencies ...")
-    $IsVTs = $build_sys -eq 'VSTS' -or ($env:CI -eq "true" -and $env:GITHUB_RUN_ID)
-    if ($IsVTs -and [ModuleManager]::TaskList.Contains('Deploy')) {
-      $Psv = (Get-Variable PSVersionTable -ValueOnly).PSVersion
-      $MSG = "Task is 'Deploy' and conditions for deployment are:`n" +
-      "    + GitHub API key is not null       : $(![string]::IsNullOrWhiteSpace($env:GitHubPAT))`n" +
-      "    + Current branch is main           : $(($env:GITHUB_REF -replace "refs/heads/") -eq 'main')`n" +
-      "    + Source is not a pull request     : $($env:GITHUB_EVENT_NAME -ne "pull_request") [$env:GITHUB_EVENT_NAME]`n" +
-      "    + Commit message matches '!deploy' : $($lastCommit -match "!deploy") [$lastCommit]`n" +
-      "    + Is Current PS version < 5 ?      : $($Psv.Major -lt 5) [$($Psv.ToString())]`n" +
-      "    + NuGet API key is not null        : $(![string]::IsNullOrWhiteSpace($env:NUGETAPIKEY))`n"
-      if ($Psv.Major -lt 5 -or [string]::IsNullOrWhiteSpace($env:NUGETAPIKEY) -or [string]::IsNullOrWhiteSpace($env:GitHubPAT) ) {
-        $MSG = $MSG.Replace('and conditions for deployment are:', 'but conditions are not correct for deployment.')
-        $MSG | Write-Host -ForegroundColor Yellow
-        if (($([Environment]::GetEnvironmentVariable($env:RUN_ID + 'CommitMessage')) -match '!deploy' -and $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BranchName')) -eq "main") -or $script:ForceDeploy -eq $true) {
-          Write-Warning "Force Deploying detected"
-        } else {
-          "Skipping Psake for this job!" | Write-Host -ForegroundColor Yellow
-          exit 0
-        }
-      }
-    };
-    [ModuleManager]::RequiredModules | Resolve-Module -UpdateModule -Verbose
-    [Console]::WriteLine()
-    Write-BuildLog "Module Requirements Successfully resolved."
-    [ModuleManager]::ShowEnvSummary("Build started")
-    $null = Set-Content -Path ($this.buildFile.FullName) -Value $this.BuildScript
-    [void][ModuleManager]::WriteHeading("Invoking psake with task list: [ $([ModuleManager]::TaskList -join ', ') ]")
-    $psakeParams = @{
-      nologo    = $true
-      buildFile = $this.buildFile.FullName
-      taskList  = [ModuleManager]::TaskList
-    }
-    if ([ModuleManager]::TaskList.Contains('TestOnly')) {
-      Set-Variable -Name ExcludeTag -Scope global -Value @('Module')
-    } else {
-      Set-Variable -Name ExcludeTag -Scope global -Value $null
-    }
-    Invoke-psake @psakeParams -Verbose:$($this.Useverbose)
-    [Console]::WriteLine()
-    Remove-Item -Path $this.buildFile.FullName -Verbose | Out-Null
-    [Console]::WriteLine()
+    # if ([ModuleManager]::TaskList.Contains('TestOnly')) {
+    #   Set-Variable -Name ExcludeTag -Scope global -Value @('Module')
+    # } else {
+    #   Set-Variable -Name ExcludeTag -Scope global -Value $null
+    # }
+    # Invoke psake psakeParams -Verbose:$($this.Useverbose) ...
+    # [Console]::WriteLine()
+    # Remove-Item -Path $this.buildFile.FullName -Verbose | Out-Null
+    # [Console]::WriteLine()
   }
   [PsObject] TestModule() {
     if ([string]::IsNullOrWhiteSpace($this.version)) {
@@ -210,7 +154,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     Set-Variable -Name BuildOutput -Value ([Environment]::GetEnvironmentVariable($Prefix + 'BuildOutput')) -Scope Local -Force
     Set-Env -Name ('{0}{1}' -f $Prefix, 'ProjectName') -Value $mdldata.ModuleName
     Set-Variable -Name ProjectName -Value ([Environment]::GetEnvironmentVariable($Prefix + 'ProjectName')) -Scope Local -Force
-    Set-Env -Name ('{0}{1}' -f $Prefix, 'PsModulePath') -Value $([Path]::Combine($BuildOutput, $ProjectName, $BuildNumber))
+    Set-Env -Name ('{0}{1}' -f $Prefix, 'PSModulePath') -Value $([Path]::Combine($BuildOutput, $ProjectName, $BuildNumber))
     Set-Env -Name ('{0}{1}' -f $Prefix, 'PsModuleManifest') -Value $([Path]::Combine($BuildOutput, $ProjectName, $BuildNumber, "$ProjectName.psd1"))
     Set-Env -Name ('{0}{1}' -f $Prefix, 'ModulePath') -Value $(if (![string]::IsNullOrWhiteSpace($Env:PsModuleManifest)) { [Path]::GetDirectoryName($Env:PsModuleManifest) } else { [Path]::GetDirectoryName($BuildOutput) })
     Set-Env -Name ('{0}{1}' -f $Prefix, 'ReleaseNotes') -Value $mdldata.ModuleName.ReleaseNotes
@@ -274,7 +218,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
           Write-Verbose "Cleaning Previous build Output ..."
           Get-ChildItem -Path $outputDir -Recurse -Force | Remove-Item -Force -Recurse
         }
-        "    Cleaned previous Output directory [$outputDir]"
+        "    Removed previous Output directory [$outputDir]"
       } -Description 'Cleans module output directory'
 
       Task Compile -Depends Clean {
@@ -290,7 +234,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
             "LICENSE"
             "$($ModuleManifest.Name)"
             "$ProjectName.psm1"
-          ).ForEach({ Copy-Item -Recurse -Path $([Path]::Combine($([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildScriptPath')), $_)) -Destination $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'PsModulePath')) })
+          ).ForEach({ Copy-Item -Recurse -Path $([Path]::Combine($([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildScriptPath')), $_)) -Destination $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'PSModulePath')) })
         } catch {
           throw $_
         }
@@ -338,10 +282,10 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
         $test_Script = [IO.FileInfo]::New([Path]::Combine($ProjectRoot, 'Test-Module.ps1'))
         if (!$test_Script.Exists) { throw [FileNotFoundException]::New($test_Script.FullName) }
         Import-Module Pester -Verbose:$false -Force -ErrorAction Stop
-        $origModulePath = $Env:PsModulePath
+        $origModulePath = $Env:PSModulePath
         Push-Location $ProjectRoot
-        if ($Env:PsModulePath.split($pathSeperator) -notcontains $outputDir ) {
-          $Env:PsModulePath = ($outputDir + $pathSeperator + $origModulePath)
+        if ($Env:PSModulePath.split($pathSeperator) -notcontains $outputDir ) {
+          $Env:PSModulePath = ($outputDir + $pathSeperator + $origModulePath)
         }
         Remove-Module $ProjectName -ErrorAction SilentlyContinue -Verbose:$false
         Import-Module $outputModDir -Force -Verbose:$false
@@ -353,7 +297,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
           Write-Error -Message "One or more Pester tests failed!"
         }
         Pop-Location
-        $Env:PsModulePath = $origModulePath
+        $Env:PSModulePath = $origModulePath
       } -Description 'Run Pester tests against compiled module'
 
       Task Deploy -Depends Test -Description 'Release new github version and Publish module to PSGallery' {
@@ -371,45 +315,45 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
           # Bump MODULE Version
           $versionToDeploy = switch ($true) {
             $($commitVer -and ([System.Version]$commitVer -lt $nextGalVer)) {
-              Write-Host -ForegroundColor Yellow "Version in commit message is $commitVer, which is less than the next Gallery version and would result in an error. Possible duplicate deployment build, skipping module bump and negating deployment"
+              Write-Host -f Yellow "Version in commit message is $commitVer, which is less than the next Gallery version and would result in an error. Possible duplicate deployment build, skipping module bump and negating deployment"
               Set-Env -Name ($env:RUN_ID + 'CommitMessage') -Value $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'CommitMessage')).Replace('!deploy', '')
               $null
               break
             }
             $($commitVer -and ([System.Version]$commitVer -gt $nextGalVer)) {
-              Write-Host -ForegroundColor Green "Module Bumped version: $commitVer [from commit message]"
+              Write-Host -f Green "Module Bumped version: $commitVer [from commit message]"
               [System.Version]$commitVer
               break
             }
             $($CurrentVersion -ge $nextGalVer) {
-              Write-Host -ForegroundColor Green "Module Bumped version: $CurrentVersion [from manifest]"
+              Write-Host -f Green "Module Bumped version: $CurrentVersion [from manifest]"
               $CurrentVersion
               break
             }
             $(([Environment]::GetEnvironmentVariable($env:RUN_ID + 'CommitMessage')) -match '!hotfix') {
-              Write-Host -ForegroundColor Green "Module Bumped version: $nextGalVer [commit message match '!hotfix']"
+              Write-Host -f Green "Module Bumped version: $nextGalVer [commit message match '!hotfix']"
               $nextGalVer
               break
             }
             $(([Environment]::GetEnvironmentVariable($env:RUN_ID + 'CommitMessage')) -match '!minor') {
               $minorVers = [System.Version]("{0}.{1}.{2}" -f $nextGalVer.Major, ([int]$nextGalVer.Minor + 1), 0)
-              Write-Host -ForegroundColor Green "Module Bumped version: $minorVers [commit message match '!minor']"
+              Write-Host -f Green "Module Bumped version: $minorVers [commit message match '!minor']"
               $minorVers
               break
             }
             $(([Environment]::GetEnvironmentVariable($env:RUN_ID + 'CommitMessage')) -match '!major') {
               $majorVers = [System.Version]("{0}.{1}.{2}" -f ([int]$nextGalVer.Major + 1), 0, 0)
-              Write-Host -ForegroundColor Green "Module Bumped version: $majorVers [commit message match '!major']"
+              Write-Host -f Green "Module Bumped version: $majorVers [commit message match '!major']"
               $majorVers
               break
             }
             Default {
-              Write-Host -ForegroundColor Green "Module Bumped version: $nextGalVer [PSGallery next version]"
+              Write-Host -f Green "Module Bumped version: $nextGalVer [PSGallery next version]"
               $nextGalVer
             }
           }
           if (!$versionToDeploy) {
-            Write-Host -ForegroundColor Yellow "No module version matched! Negating deployment to prevent errors"
+            Write-Host -f Yellow "No module version matched! Negating deployment to prevent errors"
             Set-Env -Name ($env:RUN_ID + 'CommitMessage') -Value $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'CommitMessage')).Replace('!deploy', '')
           }
           try {
@@ -477,7 +421,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
             Write-Error $_
           }
         } else {
-          Write-Host -ForegroundColor Magenta "UNKNOWN Build system"
+          Write-Host -f Magenta "UNKNOWN Build system"
         }
       }
     } | Set-Content -Path $this.buildFile.FullName -Encoding UTF8
@@ -693,7 +637,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
       ''
       "##[section] $([ModuleManager]::GetElapsed()) $Title"
     ) -join "`n"
-    $msgList | Write-Host -ForegroundColor Cyan
+    $msgList | Write-Host -f Green
     return $msgList
   }
   static [string] GetElapsed() {
@@ -759,7 +703,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     )
   }
   static [string] GetAuthorName() {
-    $AuthorName = [Environment]::GetEnvironmentVariable('UserName')
+    $AuthorName = [Environment]::GetEnvironmentVariable('USER')
     try {
       $OS = [ModuleManager]::GetHostOs()
       $AuthorName = switch ($true) {
@@ -943,7 +887,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     return [ModuleManager]::GetModulePaths($null)
   }
   static [string[]] GetModulePaths([string]$scope) {
-    [string[]]$_Module_Paths = [Environment]::GetEnvironmentVariable('PsModulePath').Split([IO.Path]::PathSeparator)
+    [string[]]$_Module_Paths = [Environment]::GetEnvironmentVariable('PSModulePath').Split([IO.Path]::PathSeparator)
     if ([string]::IsNullOrWhiteSpace($scope)) { return $_Module_Paths }; [InstallScope]$scope = $scope
     if (!(Get-Variable -Name IsWindows -ErrorAction Ignore) -or $(Get-Variable IsWindows -ValueOnly)) {
       $psv = Get-Variable PSVersionTable -ValueOnly
