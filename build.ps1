@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    PsCraft buildScript v0.1.1
+    PsCraft buildScript v0.1.2
 .DESCRIPTION
     A custom Psake buildScript for the module PsCraft.
 .LINK
@@ -19,7 +19,7 @@ param(
   [parameter(Position = 0, ParameterSetName = 'task')]
   [ValidateScript({
       $task_seq = [string[]]$_; $IsValid = $true
-      $Tasks = @('Init', 'Clean', 'Compile', 'Import', 'Test', 'Deploy')
+      $Tasks = @('Init', 'Clean', 'Compile', 'Test', 'Deploy')
       foreach ($name in $task_seq) {
         $IsValid = $IsValid -and ($name -in $Tasks)
       }
@@ -30,7 +30,7 @@ param(
       }
     }
   )][ValidateNotNullOrEmpty()][Alias('t')]
-  [string[]]$Task = @('Init', 'Clean', 'Compile', 'Import'),
+  [string[]]$Task = @('Init', 'Clean', 'Compile'),
 
   # Module buildRoot
   [Parameter(Mandatory = $false, ParameterSetName = 'task')]
@@ -45,15 +45,28 @@ param(
 
   [Parameter(Mandatory = $false, ParameterSetName = 'task')]
   [Alias('u')][ValidateNotNullOrWhiteSpace()]
-  [string]$GitHubUsername,
+  [string]$gitUser = $env:USER,
+
+  [parameter(ParameterSetName = 'task')]
+  [Alias('i')]
+  [switch]$Import,
 
   [parameter(ParameterSetName = 'help')]
   [Alias('h', '-help')]
   [switch]$Help
 )
-Begin {
-  Import-Module ./PsCraft.psm1 -Verbose:$false
-}
 process {
-  Build-Module @PSBoundParameters
+  $self = [IO.Path]::Combine($Path, "PsCraft.psm1")
+  if ([IO.File]::Exists($self)) {
+    Write-Host "<< Import .psm1" -f Green # to test latest version/features
+    Import-Module $self -Verbose:$false
+  } else {
+    if (!(Get-Module PsCraft -ListAvailable -ErrorAction Ignore)) { Install-Module PsCraft -Verbose:$false };
+    $(Get-InstalledModule PsCraft -ErrorAction Ignore).InstalledLocation | Split-Path | Import-Module -Verbose:$false
+  }
+  if ($PSCmdlet.ParameterSetName -eq 'help') {
+    Build-Module -Help
+  } else {
+    Build-Module -Task $Task -Path $Path -gitUser $gitUser -Import:$Import
+  }
 }

@@ -18,7 +18,7 @@
     [parameter(Position = 0, ParameterSetName = 'task')]
     [ValidateScript({
         $task_seq = [string[]]$_; $IsValid = $true
-        $Tasks = @('Init', 'Clean', 'Compile', 'Import', 'Test', 'Deploy')
+        $Tasks = @('Init', 'Clean', 'Compile', 'Test', 'Deploy')
         foreach ($name in $task_seq) {
           $IsValid = $IsValid -and ($name -in $Tasks)
         }
@@ -29,7 +29,7 @@
         }
       }
     )][ValidateNotNullOrEmpty()][Alias('t')]
-    [string[]]$Task = @('Init', 'Clean', 'Compile', 'Import'),
+    [string[]]$Task = @('Init', 'Clean', 'Compile'),
 
     # Module buildRoot
     [Parameter(Mandatory = $false, ParameterSetName = 'task')]
@@ -44,7 +44,11 @@
 
     [Parameter(Mandatory = $false, ParameterSetName = 'task')]
     [Alias('u')][ValidateNotNullOrWhiteSpace()]
-    [string]$GitHubUsername,
+    [string]$gitUser,
+
+    [parameter(ParameterSetName = 'task')]
+    [Alias('i')]
+    [switch]$Import,
 
     [parameter(ParameterSetName = 'help')]
     [Alias('h', '-help')]
@@ -63,8 +67,8 @@
     $script:Psake_BuildFile = New-Item $([IO.Path]::GetTempFileName().Replace('.tmp', '.ps1'))
     $script:PSake_ScriptBlock = [scriptblock]::Create({
         Write-Heading "Installing Pscraft module Requirements..."
-        if (!(Get-Module PsCraft -ListAvailable -ErrorAction Ignore)) { Install-Module PsCraft -Verbose:$false -WhatIf };
-        Import-Module PsCraft -Verbose:$false
+        if (!(Get-Module PsCraft -ListAvailable -ErrorAction Ignore)) { Install-Module PsCraft -Verbose:$false };
+        (Get-InstalledModule PsCraft -ErrorAction Ignore).InstalledLocation | Split-Path | Import-Module -Verbose:$false
         $null = Import-PackageProvider -Name NuGet -Force
         $_req = @(
           "PackageManagement"
@@ -83,6 +87,7 @@
         Write-BuildLog "Module Requirements Successfully resolved."
         Properties {
           # PSake makes variables declared in here available in other scriptblocks
+          $taskList = $Task
           $Cmdlet = $PSCmdlet
           $ProjectName = [Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')
           $BuildNumber = [Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildNumber')
@@ -98,23 +103,15 @@
           $PathSeperator = [IO.Path]::PathSeparator
           $DirSeperator = [IO.Path]::DirectorySeparatorChar
           # To prevent "variable not used" warnings:
-          $null = @($Cmdlet, $tests, $TestFile, $ProjectRoot, $outputDir, $outputModDir, $outputModVerDir, $lines, $DirSeperator, $PathSeperator)
+          $null = @($taskList, $Cmdlet, $tests, $getelapsed, $TestFile, $ProjectRoot, $outputDir, $outputModDir, $outputModVerDir, $lines, $DirSeperator, $PathSeperator)
         }
-        FormatTaskName ({
-            param($String)
-            "$((Write-Heading "Executing task: {0}" -PassThru) -join "`n")" -f $String
-          }
-        )
         #Task Default -Depends Init,Test and Compile. Deploy Has to be done Manually
         Task default -Depends Test
 
         Task Init {
           Set-Location $ProjectRoot
-          Write-Verbose "Build System Details:"
-          Write-Verbose "$((Get-ChildItem Env: | Where-Object {$_.Name -match "^(BUILD_|SYSTEM_|BH)"} | Sort-Object Name | Format-Table Name,Value -AutoSize | Out-String).Trim())"
-          Write-Verbose "Module Build version: $BuildNumber"
-          $Host.UI.WriteLine()
           Write-EnvironmentSummary "Build started"
+          Write-Verbose "Module Build version: $BuildNumber"
           $security_protocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::SystemDefault
           if ([Net.SecurityProtocolType].GetMember("Tls12").Count -gt 0) { $security_protocol = $security_protocol -bor [Net.SecurityProtocolType]::Tls12 }
           [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]$security_protocol
@@ -177,12 +174,12 @@
 
         Task -Name clean -Depends Init {
           $Host.UI.WriteLine()
+          Write-Host "    Removed any installed versions of [$ProjectName]" -F Green
           $modules = Get-Module -Name $ProjectName -ListAvailable -ErrorAction Ignore
-          $modules | Remove-Module -Force; $modules | Uninstall-Module -ErrorAction Ignore -Force | Out-Null
-          Remove-Module $ProjectName -Force -ErrorAction SilentlyContinue | Out-Null
-          if (Test-Path -Path $outputDir -PathType Container -ErrorAction SilentlyContinue) {
+          if ($modules) { $modules | Remove-Module -Verbose:$false -Force -ErrorAction Ignore | Out-Null }
+          if (Test-Path -Path $outputDir -PathType Container -ErrorAction Ignore) {
             Write-Verbose "Cleaning Previous build Output ..."
-            Get-ChildItem -Path $outputDir -Recurse -Force | Remove-Item -Force -Recurse | Out-Null
+            Get-ChildItem -Path $outputDir -Recurse -Force | Remove-Item -Force -Recurse -Verbose:$false | Out-Null
           }
           Write-Host "    Removed previous Output directory [$outputDir]" -F Green
         } -Description 'Cleans module output directory'
@@ -244,14 +241,7 @@
           Get-ChildItem $outputModVerDir | Format-Table -AutoSize
         } -Description 'Compiles module from source'
 
-        Task Import -Depends Compile {
-          $Host.UI.WriteLine()
-          '    Testing import of the Compiled module.'
-          Test-ModuleManifest -Path $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'PSModuleManifest'))
-          Import-Module $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'PSModuleManifest'))
-        } -Description 'Imports the newly compiled module'
-
-        Task Test -Depends Import {
+        Task Test -Depends Compile {
           Write-Heading "Executing Script: ./Test-Module.ps1"
           $test_Script = [IO.FileInfo]::New([IO.Path]::Combine($ProjectRoot, 'Test-Module.ps1'))
           if (!$test_Script.Exists) { $Cmdlet.ThrowTerminatingError([System.IO.FileNotFoundException]::New($test_Script.FullName)) }
@@ -411,22 +401,20 @@
           [ValidateNotNullOrEmpty()]
           [string]$build_Id
         )
+        Write-Heading "CleanUp: Remove $ModuleName, env variables, and delete LocalPSRepo"
         if (![string]::IsNullOrWhiteSpace($build_Id)) {
-          Write-Heading "CleanUp: Remove Environment Variables"
           $OldEnvNames = [Environment]::GetEnvironmentVariables().Keys | Where-Object { $_ -like "$build_Id*" }
           if ($OldEnvNames.Count -gt 0) {
             foreach ($Name in $OldEnvNames) {
               Write-BuildLog "Remove env variable $Name"
               [Environment]::SetEnvironmentVariable($Name, $null)
             }
-            [Console]::WriteLine()
           } else {
             Write-BuildLog "No old Env variables to remove; Move on ...`n"
           }
         } else {
-          Write-Warning "Invalid RUN_ID! Skipping ...`n"
+          Write-Warning "Invalid RUN_ID! Skipped 'Remove env variables' ...`n"
         }
-        $Host.UI.WriteLine()
       }
     )
     #endregion Variables
@@ -463,15 +451,17 @@
         if (!(Get-Variable -Name IsWindows -ErrorAction Ignore) -or $(Get-Variable IsWindows -ValueOnly)) {
           $LocalPSRepo = [IO.Path]::Combine([environment]::GetEnvironmentVariable("UserProfile"), 'LocalPSRepo')
         }; if (!(Test-Path -Path $LocalPSRepo -PathType Container -ErrorAction Ignore)) { New-Directory -Path $LocalPSRepo | Out-Null }
-        Invoke-Command -ScriptBlock ([scriptblock]::Create("Register-PSRepository LocalPSRepo -SourceLocation '$LocalPSRepo' -PublishLocation '$LocalPSRepo' -InstallationPolicy Trusted -Verbose:`$false -ErrorAction Ignore; Register-PackageSource -Name LocalPsRepo -Location '$LocalPSRepo' -Trusted -ProviderName Bootstrap -ErrorAction Ignore"))
+        Register-PSRepository LocalPSRepo -SourceLocation $LocalPSRepo -PublishLocation $LocalPSRepo -InstallationPolicy Trusted -Verbose:$false -ErrorAction Ignore;
+        Register-PackageSource -Name LocalPsRepo -Location $LocalPSRepo -Trusted -ProviderName Bootstrap -ErrorAction Ignore
         Write-Verbose "Verify that the new repository was created successfully"
         if ($null -eq (Get-PSRepository LocalPSRepo -Verbose:$false -ErrorAction Ignore)) {
           $PSCmdlet.ThrowTerminatingError([System.Exception]::New('Failed to create LocalPsRepo', [System.IO.DirectoryNotFoundException]::New($LocalPSRepo)))
         }
         $ModuleName = [Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')
-        $ModulePath = [IO.Path]::Combine($([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildOutput')), $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')), $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildNumber')))
+        $BuildNumber = [Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildNumber')
+        $ModulePath = [IO.Path]::Combine($([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildOutput')), $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')), $BuildNumber)
         # Publish To LocalRepo
-        $ModulePackage = [IO.Path]::Combine($LocalPSRepo, "${ModuleName}.$([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildNumber')).nupkg")
+        $ModulePackage = [IO.Path]::Combine($LocalPSRepo, "${ModuleName}.${BuildNumber}.nupkg")
         if ([IO.File]::Exists($ModulePackage)) {
           Remove-Item -Path $ModulePackage -ErrorAction 'SilentlyContinue'
         }
@@ -486,7 +476,7 @@
         # Install Module
         Install-Module $ModuleName -Repository LocalPSRepo
         # Import Module
-        if ($Task -contains 'Import' -and $(Get-Variable psake -Scope global -ValueOnly).build_success) {
+        if ($Import.IsPresent -and $(Get-Variable psake -Scope global -ValueOnly).build_success) {
           Write-Heading "Import $ModuleName to local scope"
           # Import-Module $([IO.Path]::Combine([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildOutput'), $ModuleName))
           Import-Module $ModuleName -Verbose:$false
@@ -495,14 +485,12 @@
       Write-EnvironmentSummary "Build finished"
       if (![bool][int]$env:IsAC -or $Task -contains 'Clean') {
         Invoke-Command $Clean_EnvBuildvariables -ArgumentList $env:RUN_ID
-        Write-Heading "CleanUp: Remove $ModuleName, and delete the LocalPSRepo"
-        Uninstall-Module $ModuleName -ErrorAction Ignore
+        Uninstall-Module $ModuleName -MinimumVersion $BuildNumber -ErrorAction Ignore
         # Get-ModulePath $ModuleName | Remove-Item -Recurse -Force -ErrorAction Ignore
         if ([IO.Directory]::Exists($LocalPSRepo)) {
-          Write-Verbose "Removing Local_PSRepo"
-          if ($null -ne (Get-PSRepository -Name 'LocalPSRepo' -ErrorAction Ignore)) {
-            Invoke-Command -ScriptBlock ([ScriptBlock]::Create("Unregister-PSRepository -Name 'LocalPSRepo' -Verbose -ErrorAction Ignore"))
-          }; Remove-Item $LocalPSRepo -Force -Recurse -ErrorAction Ignore
+          if ($null -ne (Get-PSRepository -Name 'LocalPSRepo' -ErrorAction Ignore -Verbose:$false)) {
+            Invoke-Command -ScriptBlock ([ScriptBlock]::Create("Unregister-PSRepository -Name 'LocalPSRepo' -Verbose:`$false -ErrorAction Ignore"))
+          }; Remove-Item $LocalPSRepo -Verbose:$false -Force -Recurse -ErrorAction Ignore
         }
         [Environment]::SetEnvironmentVariable('RUN_ID', $null)
       }

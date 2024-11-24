@@ -18,7 +18,7 @@ Write-Host "[+] Get all functions present in the Manifest ..." -ForegroundColor 
 $script:ExportedFunctions = $ModuleInformation.ExportedFunctions.Values.Name
 Write-Host "      ExportedFunctions: " -ForegroundColor DarkGray -NoNewline
 Write-Host $($ExportedFunctions -join ', ')
-$script:PS1Functions = Get-ChildItem -Path "$ModulePath/$moduleVersion/Public/*.ps1"
+$script:PS1Functions = Get-ChildItem -Path "$ModulePath/$moduleVersion/Public/*.ps1" -Recurse
 
 Describe "Module tests for $($([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')))" {
   Context " Confirm valid Manifest file" {
