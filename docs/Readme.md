@@ -34,8 +34,7 @@ The only code you are expected to write is in <a href="/Public/">Public</a> func
 First make sure you install and Import the module.
 
 ```PowerShell
-Install-Module PsCraft -verbose:$false
-Import-Module PsCraft -verbose:$false
+Install-Module PsCraft -Passthru | Install-Module
 ```
 
 ### **Create a module with** PsCraft
@@ -64,7 +63,7 @@ Add-GUI -Script MyNewScript.ps1
 ## NOTE: [WIP] ...More stuff comming.
 
 <!--
-remove 0xb
+remove x0B
 
  ls -File -Recurse -Force | ForEach-Object { &sed 's/\x0B//g' $_.FullName > $([IO.Path::Combine($_.Directory.FullName, $_.Name.Replace($_.BaseName, ($_.BaseName + "_clean_")))) };
 
