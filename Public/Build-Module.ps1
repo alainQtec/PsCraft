@@ -207,9 +207,11 @@
               }
             )
           } catch {
-            $Cmdlet.ThrowTerminatingError($_)
+            $Cmdlet.ThrowTerminatingError([System.Management.Automation.ErrorRecord]::new($_.Exception, $_.FullyQualifiedErrorId, $_.CategoryInfo, $_.TargetObject))
           }
-          if (!$ModuleManifest.Exists) { $Cmdlet.ThrowTerminatingError([System.IO.FileNotFoundException]::New('Could Not Create Module Manifest!')) }
+          if (!$ModuleManifest.Exists) {
+            $Cmdlet.ThrowTerminatingError([System.Management.Automation.ErrorRecord]::new([IO.FileNotFoundException]::New('Could Not Create Module Manifest!'), 'CouldNotCreateModuleManifest', 'ObjectNotFound', $ModuleManifest))
+          }
           $functionsToExport = @(); $publicFunctionsPath = [IO.Path]::Combine([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectPath'), "Public")
           if (Test-Path $publicFunctionsPath -PathType Container -ErrorAction SilentlyContinue) {
             Get-ChildItem -Path $publicFunctionsPath -Filter "*.ps1" -Recurse -File | ForEach-Object {
@@ -244,7 +246,7 @@
         Task Test -Depends Compile {
           Write-Heading "Executing Script: ./Test-Module.ps1"
           $test_Script = [IO.FileInfo]::New([IO.Path]::Combine($ProjectRoot, 'Test-Module.ps1'))
-          if (!$test_Script.Exists) { $Cmdlet.ThrowTerminatingError([System.IO.FileNotFoundException]::New($test_Script.FullName)) }
+          if (!$test_Script.Exists) { $Cmdlet.ThrowTerminatingError([System.Management.Automation.ErrorRecord]::new([System.IO.FileNotFoundException]::New($test_Script.FullName), 'CouldNotFindTestScript', 'ObjectNotFound', $test_Script.FullName)) }
           Import-Module Pester -Verbose:$false -Force -ErrorAction Stop
           $origModulePath = $Env:PSModulePath
           Push-Location $ProjectRoot
@@ -258,7 +260,7 @@
           Write-Host '    Pester invocation complete!' -ForegroundColor Green
           $TestResults | Format-List
           if ($TestResults.FailedCount -gt 0) {
-            $Cmdlet.WriteError("One or more Pester tests failed!")
+            $Cmdlet.WriteError([System.Management.Automation.ErrorRecord]::new([Exception]::new("One or more Pester tests failed!"), "PesterTestsFailed", 'OperationStopped', @{}))
           }
           Pop-Location
           $Env:PSModulePath = $origModulePath
@@ -374,7 +376,7 @@
                   GitHubApiKey     = $env:GitHubPAT
                   Draft            = $false
                 }
-                Publish-GithubRelease @gitHubParams
+                Publish-GitHubRelease @gitHubParams
                 Write-Heading "    Github release created successful!"
               } else {
                 if ($Is_Lower_GitHub_Version) { Write-Warning "SKIPPED Releasing. Module version $current_build_version already exists on Github!" }
@@ -382,11 +384,7 @@
               }
             } catch {
               $_ | Format-List * -Force
-              if ([bool][int]$env:IsCI) {
-                $Cmdlet.WriteError("##vso[task.logissue type=error; ] $($_.Exception.Message)")
-              } else {
-                $Cmdlet.WriteError($_)
-              }
+              $Cmdlet.WriteError([System.Management.Automation.ErrorRecord]::new($_.Exception, $_.FullyQualifiedErrorId, $_.CategoryInfo, $_.TargetObject))
             }
           } else {
             Write-Host -f Magenta "UNKNOWN Build system"
@@ -485,8 +483,7 @@
       Write-EnvironmentSummary "Build finished"
       if (![bool][int]$env:IsAC -or $Task -contains 'Clean') {
         Invoke-Command $Clean_EnvBuildvariables -ArgumentList $env:RUN_ID
-        Uninstall-Module $ModuleName -MinimumVersion $BuildNumber -ErrorAction Ignore
-        # Get-ModulePath $ModuleName | Remove-Item -Recurse -Force -ErrorAction Ignore
+        if ($ModuleName) { Uninstall-Module $ModuleName -MinimumVersion $BuildNumber -ErrorAction Ignore }
         if ([IO.Directory]::Exists($LocalPSRepo)) {
           if ($null -ne (Get-PSRepository -Name 'LocalPSRepo' -ErrorAction Ignore -Verbose:$false)) {
             Invoke-Command -ScriptBlock ([ScriptBlock]::Create("Unregister-PSRepository -Name 'LocalPSRepo' -Verbose:`$false -ErrorAction Ignore"))
