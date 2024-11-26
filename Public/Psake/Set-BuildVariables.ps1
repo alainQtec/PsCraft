@@ -33,7 +33,8 @@
         }
       }
     }
-    $data = Read-ModuleData
+    $psd1 = [IO.Path]::Combine($Path, "$([IO.DirectoryInfo]::new($Path).BaseName).psd1")
+    $data = [PsObject]([scriptblock]::Create("$([IO.File]::ReadAllText($psd1))").Invoke() | Select-Object *)
     $Version = $data.ModuleVersion
     if ($null -eq $Version) { throw [System.ArgumentNullException]::new('version', "Please make sure localizedData.ModuleVersion is not null.") }
     Write-Heading "Set Build Variables for Version: $Version"

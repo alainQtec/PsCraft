@@ -929,7 +929,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     }
   }
   static [version] GetModuleVersion([string]$dataFile) {
-    $data = Read-ModuleData -Path $dataFile
+    $data = [PsObject]([scriptblock]::Create("$([IO.File]::ReadAllText($dataFile))").Invoke() | Select-Object *)
     $_ver = $data.ModuleVersion; if ($null -eq $_ver) { $_ver = [version][IO.FileInfo]::New($dataFile).Directory.Name }
     return $_ver
   }
