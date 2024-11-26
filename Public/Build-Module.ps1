@@ -69,17 +69,17 @@
         Write-Heading "Installing Pscraft module Requirements..."
         if (!(Get-Module PsCraft -ListAvailable -ErrorAction Ignore)) { Install-Module PsCraft -Verbose:$false };
         (Get-InstalledModule PsCraft -ErrorAction Ignore).InstalledLocation | Split-Path | Import-Module -Verbose:$false
-        $null = Import-PackageProvider -Name NuGet -Force
-        $_req = @(
+        Import-PackageProvider -Name NuGet -Force
+        $RequiredModules = @(
           "PackageManagement"
-          "PSScriptAnalyzer"
-          "PowerShellGet"
-          "cliHelper.core"
-          "cliHelper.env"
-          "Pester"
-          "Psake"
+          "PSScriptAnalyzer",
+          "cliHelper.core",
+          "PowerShellGet",
+          "cliHelper.env",
+          "Pester",
+          "psake"
         )
-        foreach ($Name in $_req) {
+        foreach ($Name in $RequiredModules) {
           $Host.UI.WriteLine();
           Resolve-Module -Name $Name -UpdateModule -Verbose:$false
         }

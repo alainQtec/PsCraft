@@ -73,7 +73,7 @@ begin {
 }
 
 process {
-  Get-Module PsCraft | Remove-Module
+  Get-Module PsCraft | Remove-Module -Force -Verbose:$false
   Write-Host "[+] Checking test files ..." -ForegroundColor Green
   $missingTestFiles = $testFiles.Where({ !$_.Exists })
   if ($missingTestFiles.count -gt 0) { throw [System.IO.FileNotFoundException]::new($($testFiles.BaseName -join ', ')) }
