@@ -55,8 +55,25 @@ param(
   [Alias('h', '-help')]
   [switch]$Help
 )
-process {
+
+begin {
+  function Register-PackageFeed ([switch]$ForceBootstrap) {
+    if ($null -eq (Get-PSRepository -Name PSGallery -ErrorAction Ignore)) {
+      Unregister-PSRepository -Name PSGallery -Verbose:$false -ErrorAction Ignore
+      Register-PSRepository -Default -InstallationPolicy Trusted
+    }
+    if ((Get-PSRepository -Name PSGallery).InstallationPolicy -ne 'Trusted') {
+      Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Verbose:$false
+    }
+    Get-PackageProvider -Name Nuget -ForceBootstrap:($ForceBootstrap.IsPresent) -Verbose:$false
+    if (!(Get-PackageProvider -Name Nuget)) {
+      Install-PackageProvider -Name NuGet -Force | Out-Null
+    }
+  }
   $self = [IO.Path]::Combine($Path, "PsCraft.psm1")
+}
+process {
+  Register-PackageFeed -ForceBootstrap
   if ([IO.File]::Exists($self)) {
     Write-Host "<< Import .psm1" -f Green # to test latest version/features
     Import-Module $self -Verbose:$false
