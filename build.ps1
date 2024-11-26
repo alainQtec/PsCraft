@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    PsCraft buildScript v0.1.3
+    PsCraft buildScript v0.1.4
 .DESCRIPTION
     A custom Psake buildScript for the module PsCraft.
 .LINK
@@ -16,7 +16,7 @@
 #>
 [cmdletbinding(DefaultParameterSetName = 'task')]
 param(
-  [parameter(Position = 0, ParameterSetName = 'task')]
+  [parameter(Position = 0, ParameterSetName = 'task', HelpMessage = 'Task Sequence. use --help to learn')]
   [ValidateScript({
       $task_seq = [string[]]$_; $IsValid = $true
       $Tasks = @('Init', 'Clean', 'Compile', 'Test', 'Deploy')
@@ -32,10 +32,9 @@ param(
   )][ValidateNotNullOrEmpty()][Alias('t')]
   [string[]]$Task = @('Init', 'Clean', 'Compile'),
 
-  # Module buildRoot
-  [Parameter(Mandatory = $false, ParameterSetName = 'task')]
+  [Parameter(Mandatory = $false, ParameterSetName = 'task', HelpMessage = 'Module buildRoot')]
   [ValidateScript({
-      if (Test-Path -Path $_ -PathType Container -ErrorAction Ignore) {
+      if (Test-Path -Path $_ -PathType Container -ea Ignore) {
         return $true
       } else {
         throw [System.ArgumentException]::new('Path', "Path: $_ is not a valid directory.")
@@ -51,51 +50,42 @@ param(
   [Alias('i')]
   [switch]$Import,
 
+  [parameter(ParameterSetName = 'task')]
+  [switch]$UseSelf,
+
   [parameter(ParameterSetName = 'help')]
   [Alias('h', '-help')]
   [switch]$Help
 )
 
 begin {
+  $defaultBuildRequirements = @("cliHelper.env", "cliHelper.core", "PsCraft") # ie: For this ./build.ps1 to work.
   function Register-PackageFeed ([switch]$ForceBootstrap) {
-    if ($null -eq (Get-PSRepository -Name PSGallery -ErrorAction Ignore)) {
-      Unregister-PSRepository -Name PSGallery -Verbose:$false -ErrorAction Ignore
+    if ($null -eq (Get-PSRepository -Name PSGallery -ea Ignore)) {
+      Unregister-PSRepository -Name PSGallery -Verbose:$false -ea Ignore
       Register-PSRepository -Default -InstallationPolicy Trusted
     }
     if ((Get-PSRepository -Name PSGallery).InstallationPolicy -ne 'Trusted') {
       Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Verbose:$false
     }
     Get-PackageProvider -Name Nuget -ForceBootstrap:($ForceBootstrap.IsPresent) -Verbose:$false
-    if (!(Get-PackageProvider -Name Nuget)) {
-      Install-PackageProvider -Name NuGet -Force | Out-Null
-    }
+    if (!(Get-PackageProvider -Name Nuget)) { Install-PackageProvider -Name NuGet -Force }
   }
-  function Read-ModulePsd1([IO.DirectoryInfo]$folder) {
-    $p = [IO.Path]::Combine($folder.FullName, "$($folder.BaseName).psd1"); $d = [IO.File]::ReadAllText($p);
-    return [scriptblock]::Create("$d").Invoke()
-  }
-  function Import-rmodule([string]$Name) {
-    if (!(Get-Module $Name -ListAvailable -ErrorAction Ignore)) { Install-Module $Name -Verbose:$false };
-    $(Get-InstalledModule $Name -ErrorAction Stop).InstalledLocation | Split-Path | Import-Module -Verbose:$false
-  }
-  function Import-RequiredModules ([IO.DirectoryInfo]$RootPath, [string[]]$Names, [switch]$UseSelf) {
-    $self = [IO.Path]::Combine($RootPath.FullName, "$($RootPath.BaseName).psm1")
-    if ([IO.File]::Exists($self) -and $UseSelf) {
-      $Names.ForEach({ Import-rmodule $_ })
-      Write-Host "<< Import current build of [$($RootPath.BaseName)] <<" -f Green # (done after requirements are imported)
-      Import-Module ([IO.Path]::Combine($RootPath.FullName, "$($RootPath.BaseName).psd1"))
-    } else {
-      $Names.ForEach({ Import-rmodule $_ })
-    }
+  function Import-BuildRequirements ([string[]]$req, [string[]]$defaults, [string]$psd) {
+    if ($null -eq $req) { $req = @() }
+    $defaults.ForEach({ !$req.Contains($_) ? ($req += $_) : $null }) | Out-Null
+    Write-Host "Resolve ./build.ps1 requirements: [$($req -join ', ')]" -f Green
+    $req.ForEach({ Install-Module $_ -Verbose:$false; Write-Host " [+] Installed module $_" -f Green })
+    $psds = (Get-Module -Name $req -ListAvailable -Verbose:$false).Path | Sort-Object -Unique { Split-Path $_ -Leaf }
+    if ($UseSelf.IsPresent) { ([IO.File]::Exists($psd) -and [IO.File]::Exists([IO.Path]::Combine($path, "$($path | Split-Path -Leaf).psm1"))) ? ($psds += $psd) : $null }
+    $psds | Import-Module -Verbose:$false -ea Stop
   }
 }
 process {
+  if ($PSCmdlet.ParameterSetName -eq 'help') { Get-Help $MyInvocation.MyCommand.Source -Full | Out-String | Write-Host -f Green; return }
   Register-PackageFeed -ForceBootstrap
-  $data = Read-ModulePsd1 -folder ([IO.DirectoryInfo]::new($Path))
-  Import-RequiredModules -RootPath $Path -Names $data.RequiredModules -UseSelf # ie: using this module to build this module :)
-  if ($PSCmdlet.ParameterSetName -eq 'help') {
-    Build-Module -Help
-  } else {
-    Build-Module -Task $Task -Path $Path -gitUser $gitUser -Import:$Import
-  }
+  $psd1 = [IO.Path]::Combine($Path, "$([IO.DirectoryInfo]::new($Path).BaseName).psd1")
+  $data = [PsObject]([scriptblock]::Create("$([IO.File]::ReadAllText($psd1))").Invoke() | Select-Object *)
+  Import-BuildRequirements -req $data.RequiredModules -defaults $defaultBuildRequirements -psd $psd1
+  Build-Module -Task $Task -Path $Path -gitUser $gitUser -Import:$Import
 }

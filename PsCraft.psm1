@@ -1,3 +1,6 @@
+using namespace System
+using namespace System.IO
+using namespace System.Management.Automation
 using module Private/PsCraft.CodeSigner
 using module Private/PsCraft.ModuleManager
 

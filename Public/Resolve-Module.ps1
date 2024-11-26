@@ -1,4 +1,7 @@
-﻿function Resolve-Module {
+﻿using namespace System
+using namespace System.IO
+using namespace System.Management.Automation
+function Resolve-Module {
   # .DESCRIPTION
   #   Gets latest module version from PSGallery and installs the update if local module is out of date.
   [CmdletBinding()][OutputType([Object[]], [IO.FileInfo[]])]
