@@ -45,7 +45,7 @@ param(
 
   [Parameter(Mandatory = $false, ParameterSetName = 'task')]
   [Alias('u')][ValidateNotNullOrWhiteSpace()]
-  [string]$gitUser = $env:USER,
+  [string]$gitUser = { return $Iswindows ? $env:UserName : $env:USER }.Invoke(),
 
   [parameter(ParameterSetName = 'task')]
   [Alias('i')]
