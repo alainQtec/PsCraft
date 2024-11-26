@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    PsCraft buildScript v0.1.4
+    PsCraft buildScript v0.1.5
 .DESCRIPTION
     A custom Psake buildScript for the module PsCraft.
 .LINK
