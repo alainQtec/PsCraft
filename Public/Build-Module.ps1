@@ -419,7 +419,7 @@
       [Environment]::SetEnvironmentVariable('IsCI', $(if (![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('TF_BUILD'))) { '1' } else { '0' }), [System.EnvironmentVariableTarget]::Process)
       [Environment]::SetEnvironmentVariable('RUN_ID', $(if ([bool][int]$env:IsAC -or $env:CI -eq "true") { [Environment]::GetEnvironmentVariable('GITHUB_RUN_ID') }else { [Guid]::NewGuid().Guid.substring(0, 21).replace('-', [string]::Join('', (0..9 | Get-Random -Count 1))) + '_' }), [System.EnvironmentVariableTarget]::Process);
       Set-BuildVariables $Path $env:RUN_ID
-      Write-Heading "Invoking psake with task list: [ $($Task -join ', ') ]"
+      Write-Heading "Invoking psake with task: [ $($Task -join ', ') ]"
       if ($Task -contains 'TestOnly') {
         Set-Variable -Name ExcludeTag -Scope global -Value @('Module')
       } else {
