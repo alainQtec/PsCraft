@@ -862,7 +862,7 @@ class PsModule {
       tests     = [Path]::Combine($mroot, 'Tests');
       public    = [Path]::Combine($mroot, 'Public')
       private   = [Path]::Combine($mroot, 'Private')
-      localdata = [Path]::Combine($mroot, [Thread]::CurrentThread.CurrentCulture.Name) # The purpose of this folder is to store localized content for your module, such as help files, error messages, or any other text that needs to be displayed in different languages.
+      localdata = [Path]::Combine($mroot, (Get-Culture).Name) # The purpose of this folder is to store localized content for your module, such as help files, error messages, or any other text that needs to be displayed in different languages.
       workflows = $workflows
       # Add more here. you can access them like: $this.Folders.Where({ $_.Name -eq "root" }).value.FullName
     };
