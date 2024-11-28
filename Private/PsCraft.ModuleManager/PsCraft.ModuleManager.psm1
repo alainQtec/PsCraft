@@ -129,7 +129,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     #  Creates the psake build script
     if (!$this.buildFile.Exists) { throw [FileNotFoundException]::new('Unable to find the build script.') }; {
       # .SYNOPSIS
-      #   buildScript v0.2.0
+      #   buildScript v0.2.1
       # .DESCRIPTION
       #   A custom Psake buildScript for the module <ModuleName>.
       # .LINK
