@@ -93,7 +93,7 @@
           $security_protocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::SystemDefault
           if ([Net.SecurityProtocolType].GetMember("Tls12").Count -gt 0) { $security_protocol = $security_protocol -bor [Net.SecurityProtocolType]::Tls12 }
           [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]$security_protocol
-          Import-Module PsCraft -Verbose:$false -ea Stop; $Host.ui.WriteLine();
+          $buildrequirements.ForEach({ Install-Module $_ -Verbose:$false -ea Stop }); $Host.ui.WriteLine();
           #Make sure everything is updated to the latest version:
           $buildrequirements | PsCraft\Resolve-Module -Update -Verbose:$false
           Write-EnvironmentSummary "Initialize [$ProjectName] build environment"

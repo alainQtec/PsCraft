@@ -3,7 +3,7 @@ using namespace System.IO
 using namespace System.Management.Automation
 <#
 .SYNOPSIS
-  PsCraft buildScript v0.1.9
+  PsCraft buildScript v0.2.0
 .DESCRIPTION
   A custom Psake buildScript for the module PsCraft.
 .LINK
