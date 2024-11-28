@@ -3,19 +3,19 @@ using namespace System.IO
 using namespace System.Management.Automation
 <#
 .SYNOPSIS
-    PsCraft buildScript v0.1.7
+  PsCraft buildScript v0.1.7
 .DESCRIPTION
-    A custom Psake buildScript for the module PsCraft.
+  A custom Psake buildScript for the module PsCraft.
 .LINK
-    https://github.com/alainQtec/PsCraft/blob/main/build.ps1
+  https://github.com/alainQtec/PsCraft/blob/main/build.ps1
 .EXAMPLE
-    Running ./build.ps1 will only "Init, Compile & Import" the module; That's it, no tests.
-    To run tests Use:
-    ./build.ps1
-    This Will build the module, Import it and run tests using the ./Test-Module.ps1 script.
+  Running ./build.ps1 will only "Init, Compile & Import" the module; That's it, no tests.
+  To run tests Use:
+  ./build.ps1
+  This Will build the module, Import it and run tests using the ./Test-Module.ps1 script.
 .EXAMPLE
-    ./build.ps1 -Task deploy
-    Will build the module, test it and deploy it to PsGallery
+  ./build.ps1 -Task deploy
+  Will build the module, test it and deploy it to PsGallery
 #>
 [cmdletbinding(DefaultParameterSetName = 'task')]
 param(
