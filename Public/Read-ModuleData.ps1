@@ -34,7 +34,7 @@
   begin {
     $Path = Resolve-Path $Path
     if (!$PSCmdlet.MyInvocation.BoundParameters.ContainsKey('File')) {
-      $File = [IO.Path]::Combine($Path, [System.Threading.Thread]::CurrentThread.CurrentCulture.Name, "$(Split-Path $Path -Leaf).strings.psd1");
+      $File = [IO.Path]::Combine($Path, [System.Threading.Thread]::CurrentThread.CurrentCulture.Name, "$([IO.DirectoryInfo]::New($Path).BaseName).strings.psd1");
     }; $File = Resolve-Path $File;
     $IsValidPsd1file = (Test-Path -Path $File -PathType Leaf -ea Ignore) -and ([IO.Path]::GetExtension($File) -eq ".psd1")
     if (!$IsValidPsd1file) {
