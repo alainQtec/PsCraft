@@ -17,7 +17,7 @@
     [Parameter(Mandatory = $true)]
     [ValidateScript({ $_ -match '^[a-zA-Z0-9_.-]+$' })]
     [Alias('Name', 'n')]
-    [string]$moduleName,
+    [string]$ModuleName,
 
     [Parameter(Mandatory = $false)]
     [ValidateScript({ ($_ -as 'version') -is [version] -or $_ -eq 'latest' })]

@@ -122,42 +122,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     [ValidateNotNullOrWhiteSpace()][string]$Prefix = $Prefix
     [validateNotNullOrWhiteSpace()][string]$RootPath = $RootPath
     Resolve-Module cliHelper.env -ro -ea Stop -Verbose:$false
-    if (![bool][int]$env:IsAC) {
-      $LocEnvFile = [IO.FileInfo]::New([Path]::GetFullPath([Path]::Combine($RootPath, '.env')))
-      if (!$LocEnvFile.Exists) {
-        New-Item -Path $LocEnvFile.FullName -ItemType File -ErrorAction Stop
-        Write-BuildLog "Created a new .env file"
-      }
-      # Set all Default/Preset Env: variables from the .env
-      Set-Env -source $LocEnvFile -Scope Process
-      if (![string]::IsNullOrWhiteSpace($env:LAST_BUILD_ID)) {
-        Set-Env -Name LAST_BUILD_ID -Value $Prefix -OutFile $LocEnvFile
-        Get-Item $LocEnvFile -Force | ForEach-Object { $_.Attributes = $_.Attributes -bor "Hidden" }
-        Write-Host "Clean Last Builds's Env~ variables" -f Green
-        Clear-BuildEnvironment -Id $env:LAST_BUILD_ID
-      }
-    }
-    $mdldata = Read-ModuleData
-    $Version = $mdldata.ModuleVersion; $BuildScriptPath = $null; $BuildNumber = $null; $ProjectName = $null; $BuildOutput = $null
-    if ($null -eq $Version) { throw [System.ArgumentNullException]::new('version', "Please make sure localizedData.ModuleVersion is not null.") }
-    [void][ModuleManager]::WriteHeading("Set Build Variables for Version: $Version")
-    Set-Env -Name ('{0}{1}' -f $Prefix, 'BuildStart') -Value $(Get-Date -Format o)
-    Set-Env -Name ('{0}{1}' -f $Prefix, 'BuildScriptPath') -Value $RootPath
-    Set-Variable -Name BuildScriptPath -Value ([Environment]::GetEnvironmentVariable($Prefix + 'BuildScriptPath')) -Scope Local -Force
-    Set-Env -Name ('{0}{1}' -f $Prefix, 'BuildSystem') -Value $(if ([bool][int]$env:IsCI -or ($Env:BUILD_BUILDURI -like 'vstfs:*')) { "VSTS" } else { [System.Environment]::MachineName })
-    Set-Env -Name ('{0}{1}' -f $Prefix, 'ProjectPath') -Value $(if ([bool][int]$env:IsCI) { $Env:SYSTEM_DEFAULTWORKINGDIRECTORY } else { $BuildScriptPath })
-    Set-Env -Name ('{0}{1}' -f $Prefix, 'BranchName') -Value $(if ([bool][int]$env:IsCI) { $Env:BUILD_SOURCEBRANCHNAME } else { $(Push-Location $BuildScriptPath; "$(git rev-parse --abbrev-ref HEAD)".Trim(); Pop-Location) })
-    Set-Env -Name ('{0}{1}' -f $Prefix, 'CommitMessage') -Value $(if ([bool][int]$env:IsCI) { $Env:BUILD_SOURCEVERSIONMESSAGE } else { $(Push-Location $BuildScriptPath; "$(git log --format=%B -n 1)".Trim(); Pop-Location) })
-    Set-Env -Name ('{0}{1}' -f $Prefix, 'BuildNumber') -Value $(if ([bool][int]$env:IsCI) { $Env:BUILD_BUILDNUMBER } else { $(if ([string]::IsNullOrWhiteSpace($Version)) { '1.0.0.1' } else { $Version }) })
-    Set-Variable -Name BuildNumber -Value ([Environment]::GetEnvironmentVariable($Prefix + 'BuildNumber')) -Scope Local -Force
-    Set-Env -Name ('{0}{1}' -f $Prefix, 'BuildOutput') -Value $([Path]::Combine($BuildScriptPath, "BuildOutput"))
-    Set-Variable -Name BuildOutput -Value ([Environment]::GetEnvironmentVariable($Prefix + 'BuildOutput')) -Scope Local -Force
-    Set-Env -Name ('{0}{1}' -f $Prefix, 'ProjectName') -Value $mdldata.ModuleName
-    Set-Variable -Name ProjectName -Value ([Environment]::GetEnvironmentVariable($Prefix + 'ProjectName')) -Scope Local -Force
-    Set-Env -Name ('{0}{1}' -f $Prefix, 'PSModulePath') -Value $([Path]::Combine($BuildOutput, $ProjectName, $BuildNumber))
-    Set-Env -Name ('{0}{1}' -f $Prefix, 'PsModuleManifest') -Value $([Path]::Combine($BuildOutput, $ProjectName, $BuildNumber, "$ProjectName.psd1"))
-    Set-Env -Name ('{0}{1}' -f $Prefix, 'ModulePath') -Value $(if (![string]::IsNullOrWhiteSpace($Env:PsModuleManifest)) { [Path]::GetDirectoryName($Env:PsModuleManifest) } else { [Path]::GetDirectoryName($BuildOutput) })
-    Set-Env -Name ('{0}{1}' -f $Prefix, 'ReleaseNotes') -Value $mdldata.ModuleName.ReleaseNotes
+    Set-BuildVariables -Path $RootPath -Prefix $Prefix
   }
   [void] SetBuildScript() {
     # .SYNOPSIS
@@ -458,7 +423,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     $BuildOutput = [Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildOutput')
     $this.ModulePath = [Path]::Combine($BuildOutput, $ModuleName, $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildNumber')))
     [void][ModuleManager]::WriteHeading("Publish to Local PsRepository")
-    $dependencies = Read-ModuleData -Path [Path]::Combine($this.ModulePath, "$([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')).psd1") -PropertyName "RequiredModules"
+    $dependencies = Read-ModuleData -File ([Path]::Combine($this.ModulePath, "$([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')).psd1")) -PropertyName "RequiredModules"
     ForEach ($item in $dependencies) {
       $md = Get-Module $item -Verbose:$false; $mdPath = $md.Path | Split-Path
       Write-Verbose "Publish RequiredModule $item ..."
@@ -574,62 +539,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     }
   }
   static [string] ManuallyInstallModule([string]$moduleName, [string]$Version) {
-    # .DESCRIPTION
-    #   Last resort.
-    # .NOTES
-    #   Before you run this, remember that
-    #   sometimes you just need to apply a quick fix like this one:
-    #   Unregister-PSRepository -Name PSGallery
-    #   Register-PSRepository -Default
-    #   if ((Get-PSRepository -Name PSGallery).InstallationPolicy -ne 'Trusted') {
-    #       Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-    #   }
-    # We manually installs the module when the normal way fails
-    $Module_Path = ""; $response = $null; $downloadUrl = ''; $VerboseMsg = 'Normal Installation Failed :' + $_.Exception.Message + "`nUsing Manual Instalation ..."
-    Write-Verbose $VerboseMsg -Verbose
-    # For some reason Install-Module can fail (ex: on Arch). This is a manual workaround when that happens.
-    $version_filter = if ($Version -eq 'latest') { 'IsLatestVersion' } else { "Version eq '$Version'" }
-    $url = "https://www.powershellgallery.com/api/v2/Packages?`$filter=Id eq '$moduleName' and $version_filter"
-    try {
-      $response = Invoke-RestMethod -Uri $url -Method Get -Verbose:$false
-      if ($null -eq $response) {
-        $Error_params = @{
-          ExceptionName    = 'System.InvalidOperationException'
-          ExceptionMessage = "Module '$moduleName' was not found in PSGallery repository."
-          ErrorId          = 'CouldNotFindModule'
-          Caller           = [ModuleManager]::CallerCmdlet
-          ErrorCategory    = 'InvalidResult'
-        }
-        Write-TerminatingError @Error_params
-      }
-      [ValidateNotNullOrEmpty()][string]$downloadUrl = $response.content.src
-      [ValidateNotNullOrEmpty()][string]$moduleName = $response.properties.Id
-      [ValidateNotNullOrEmpty()][string]$Version = $response.properties.Version
-      $Module_Path = [ModuleManager]::GetInstallPath($moduleName, $Version)
-    } catch {
-      $Error_params = @{
-        ExceptionName    = 'System.InvalidOperationException'
-        ExceptionMessage = "Failed to find PsGallery release for '$moduleName' version '$Version'. Url used: '$url'. $($_.Exception.Message)"
-        ErrorId          = 'RestMethod_Failed'
-        Caller           = [ModuleManager]::CallerCmdlet
-        ErrorCategory    = 'OperationStopped'
-      }
-      Write-TerminatingError @Error_params
-    }
-    if (!(Test-Path -Path $Module_Path -PathType Container -ErrorAction Ignore)) { New-Directory -Path $Module_Path }
-    $ModuleNupkg = [IO.Path]::Combine($Module_Path, "$moduleName.nupkg")
-    Write-Host "Download $moduleName.nupkg ... " -NoNewline -ForegroundColor DarkCyan
-    Invoke-WebRequest -Uri $downloadUrl -OutFile $ModuleNupkg -Verbose:$false;
-    if ([ModuleManager]::GetHostOs() -eq "Windows") { Unblock-File -Path $ModuleNupkg }
-    Expand-Archive $ModuleNupkg -DestinationPath $Module_Path -Verbose:$false -Force
-    $Items_to_CleanUp = [System.Collections.ObjectModel.Collection[System.Object]]::new()
-    @('_rels', 'package', '*Content_Types*.xml', "$ModuleNupkg", "$($moduleName.Tolower()).nuspec" ) | ForEach-Object { [void]$Items_to_CleanUp.Add((Get-Item -Path "$Module_Path/$_" -ErrorAction Ignore)) }
-    $Items_to_CleanUp = $Items_to_CleanUp | Sort-Object -Unique
-    ForEach ($Item in $Items_to_CleanUp) {
-      [bool]$Recurse = $Item.Attributes -eq [FileAttributes]::Directory
-      Remove-Item -LiteralPath $Item.FullName -Recurse:$Recurse -Force -ErrorAction SilentlyContinue
-    }
-    return $Module_Path
+    return Install-PsGalleryModule -moduleName $moduleName -Version $Version
   }
   static [string] WriteHeading([String]$Title) {
     [validatenotnullorwhitespace()][string]$Title = $Title
@@ -814,7 +724,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
       "Psake"
     )
     if (!$b.dataFile.Exists) { throw [FileNotFoundException]::new('Unable to find the LocalizedData file.', "$($b.dataFile.BaseName).strings.psd1") }
-    [ModuleManager]::LocalizedData = Read-ModuleData $b.dataFile
+    [ModuleManager]::LocalizedData = Read-ModuleData -File $b.dataFile
     $b.SetBuildVariables();
     if ($null -ne $o) {
       $o.value.GetType().GetProperties().ForEach({
@@ -849,7 +759,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     $result = [LocalPsModule]::new(); $result.Scope = 'LocalMachine'
     $ModulePsd1 = ($ModuleBase.GetFiles().Where({ $_.Name -like "$Name*" -and $_.Extension -eq '.psd1' }))[0]
     if ($null -eq $ModulePsd1) { return $result }
-    $result.Info = Read-ModuleData $ModulePsd1.FullName
+    $result.Info = Read-ModuleData -File $ModulePsd1.FullName
     $result.Name = $ModulePsd1.BaseName
     $result.Psd1 = $ModulePsd1
     $result.Path = if ($result.Psd1.Directory.Name -as [version] -is [version]) { $result.Psd1.Directory.Parent } else { $result.Psd1.Directory }
