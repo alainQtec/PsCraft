@@ -12,15 +12,7 @@
   [OutputType([PsObject])]
   param (
     [Parameter(Position = 0, Mandatory = $false, ValueFromPipeline = $true)]
-    [ValidateScript({
-        $IsValidPsd1file = (Test-Path -Path $_ -PathType Leaf -ea Ignore) -and ([IO.Path]::GetExtension($_) -eq ".psd1")
-        if ($IsValidPsd1file) {
-          return $true
-        } else {
-          throw [System.ArgumentException]::new("File '$_' is not valid. Please provide a valid path/to/<modulename>.Strings.psd1", 'Path')
-        }
-      }
-    )][ValidateNotNullOrWhiteSpace()][Alias('f')][string]
+    [ValidateNotNullOrWhiteSpace()][Alias('f')][string]
     $File,
 
     [Parameter(Position = 1, Mandatory = $false)]
@@ -40,13 +32,13 @@
     $Path = (Resolve-Path .).Path
   )
   begin {
-    $File = switch ($true) {
-      (!$PSBoundParameters.ContainsKey("File")) {
-        [IO.Path]::Combine($path, [System.Threading.Thread]::CurrentThread.CurrentCulture.Name, "$(Split-Path $path -Leaf).strings.psd1"); break
-      }
-      Default {
-        Resolve-Path $File
-      }
+    $Path = Resolve-Path $Path
+    if (!$PSCmdlet.MyInvocation.BoundParameters.ContainsKey('File')) {
+      $File = [IO.Path]::Combine($Path, [System.Threading.Thread]::CurrentThread.CurrentCulture.Name, "$(Split-Path $Path -Leaf).strings.psd1");
+    }; $File = Resolve-Path $File;
+    $IsValidPsd1file = (Test-Path -Path $File -PathType Leaf -ea Ignore) -and ([IO.Path]::GetExtension($File) -eq ".psd1")
+    if (!$IsValidPsd1file) {
+      throw [System.ArgumentException]::new("File '$File' is not valid. Please provide a valid path/to/<modulename>.Strings.psd1", 'Path')
     }
   }
   process {
