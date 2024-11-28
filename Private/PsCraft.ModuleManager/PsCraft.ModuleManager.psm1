@@ -81,7 +81,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
     # [void][ModuleManager]::ShowEnvSummary("Preparing build environment")
     # $this.setBuildVariables()
     # [Console]::WriteLine()
-    # [ModuleManager]::RequiredModules | Resolve-Module -UpdateModule -Verbose
+    # [ModuleManager]::RequiredModules | Resolve-Module -Update -Verbose
     # [Console]::WriteLine()
     # BuildLog    "Module Requirements Successfully resolved."
     # [ModuleManager]::ShowEnvSummary("Build started")

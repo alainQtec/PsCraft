@@ -11,31 +11,6 @@ using module Private/PsCraft.ModuleManager
 #  $builder = [PsCraft]::new($module.Path)
 class PsCraft : ModuleManager {
   static [PsObject] $LocalizedData = (Read-ModuleData)
-  static [IO.FileInfo] InstallPsGalleryModule([string]$moduleName) {
-    return [PsCraft]::InstallPsGalleryModule($moduleName, 'latest', $false)
-  }
-  static [IO.FileInfo] InstallPsGalleryModule([string]$moduleName, [string]$Version, [bool]$UpdateOnly) {
-    # .SYNOPSIS
-    #  This method is like install-Module but it installs a PowerShell module no matter what.
-    # .DESCRIPTION
-    #  Even on systems that seem to not have a broken PowerShellGet.
-    $Module_Path = ''; $IsValidversion = ($Version -as 'version') -is [version] -or $Version -eq 'latest'
-    if (!$IsValidversion) { throw [System.ArgumentException]::New('Please Provide a valid version string') }
-    $IsValidName = $moduleName -match '^[a-zA-Z0-9_.-]+$'
-    if (!$IsValidName) { throw [System.ArgumentException]::New('Please Provide a valid module name') }
-    # Try Using normal Installation
-    try {
-      if ($UpdateOnly) {
-        [void][PsCraft]::UpdateModule($moduleName, $Version)
-      } else {
-        [void][PsCraft]::InstallModule($moduleName, $Version)
-      }
-      $Module_Path = ([PsCraft]::FindLocalPsModule($moduleName)).Psd1 | Split-Path -ErrorAction Stop
-    } catch {
-      $Module_Path = [PsCraft]::ManuallyInstallModule($moduleName, $Version)
-    }
-    return $Module_Path
-  }
   static [LocalPsModule[]] Search([string]$Name) {
     [ValidateNotNullOrWhiteSpace()][string]$Name = $Name
     $res = @(); $AvailModls = Get-Module -ListAvailable -Name $Name -Verbose:$false -ErrorAction Ignore

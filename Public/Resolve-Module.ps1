@@ -12,7 +12,7 @@ function Resolve-Module {
 
     [Parameter(Mandatory = $false)]
     [Alias('u')]
-    [switch]$UpdateModule,
+    [switch]$Update,
 
     [Parameter(Mandatory = $false)]
     [Alias('ro')]
@@ -24,37 +24,37 @@ function Resolve-Module {
     $res = @()
   }
   process {
-    foreach ($moduleName in $Names) {
-      Write-Host "`nResolve: Module [$moduleName]" -f Magenta
-      $Local_ModuleVersion = Get-LatestModuleVersion -Name $moduleName -Source LocalMachine
-      $Latest_ModuleVerion = Get-LatestModuleVersion -Name $moduleName -Source PsGallery -ErrorAction Ignore
+    $Names | ForEach-Object {
+      Write-Host "Resolve: Module [$_] " -f Magenta -NoNewline
+      $Local_ModuleVersion = Get-LatestModuleVersion -Name $_ -Source LocalMachine
+      $Latest_ModuleVerion = Get-LatestModuleVersion -Name $_ -Source PsGallery -ErrorAction Ignore
       if (!$Latest_ModuleVerion -or $Latest_ModuleVerion -eq ([version]::New())) {
-        $Error_params = @{
-          ExceptionName    = 'System.Data.OperationAbortedException'
-          ExceptionMessage = "ResolveModule.Get-LatestModuleVersion: Failed to find latest module version for '$moduleName'."
-          ErrorId          = 'CouldNotFindModule'
-          Caller           = $PSCmdlet
-          ErrorCategory    = 'OperationStoped'
+        $exception = [System.Management.Automation.ItemNotFoundException]::new("ResolveModule.Get-LatestModuleVersion: Failed to find latest module version for '$_'.")
+        $errorRecord = [System.Management.Automation.ErrorRecord]::new($exception, 'CouldNotFindModule', 'OperationStopped', $_)
+        if ((Test-Connection -TargetName www.powershellgallery.com -Traceroute).Reply.Status -Contains "TimeExceeded") {
+          $PSCmdlet.WriteError($errorRecord)
+        } else {
+          $PSCmdlet.ThrowTerminatingError($errorRecord)
         }
-        Write-TerminatingError @Error_params
       }
       if (!$Local_ModuleVersion -or $Local_ModuleVersion -eq ([version]::New())) {
-        Write-Verbose -Message "Install $moduleName ..."
-        $res += [Pscraft]::InstallPsGalleryModule($moduleName)
+        Write-Verbose -Message "Install $_ ..."
+        $res += [Pscraft]::InstallPsGalleryModule($_)
       } elseif ($Local_ModuleVersion -lt $Latest_ModuleVerion -and $UpdateModule.IsPresent) {
-        Write-Verbose -Message "Update $moduleName from version $Local_ModuleVersion to version [$Latest_ModuleVerion] ..." -Verbose
-        $res += [Pscraft]::InstallPsGalleryModule($moduleName, $Latest_ModuleVerion, $true)
+        Write-Verbose -Message "Update $_ from version $Local_ModuleVersion to version [$Latest_ModuleVerion] ..." -Verbose
+        $res += [Pscraft]::InstallPsGalleryModule($_, $Latest_ModuleVerion, $true)
       } else {
-        Write-Host "Resolve: Module $moduleName is already Installed and Up-to-date." -f Green
+        Write-Host ">> " -NoNewline
+        Write-Host "$_ is already Installed and Up-to-date." -f Green
       }
       if ($removeold.IsPresent) {
         # TODO: remove duplicates and old versions using Clear-ModuleVersions
-        if (![Pscraft]::removeold($moduleName)) {
-          Write-Error -Exception System.Management.Automation.ItemNotFoundException -Message "Can't find Module $moduleName" -ErrorId "ModuleNotFound" -Category "ObjectNotFound"
+        if (![Pscraft]::removeold($_)) {
+          Write-Error -Exception System.Management.Automation.ItemNotFoundException -Message "Can't find Module $_" -ErrorId "ModuleNotFound" -Category "ObjectNotFound"
         }
       }
-      Write-Verbose -Message "Importing module $moduleName ..."
-      (Find-InstalledModule $moduleName).Path | Import-Module -Verbose:$useverbose -Force:$useforce
+      Write-Verbose -Message "Importing module $_ ..."
+      (Find-InstalledModule $_).Path | Import-Module -Verbose:$useverbose -Force:$useforce
     }
   }
   end {
