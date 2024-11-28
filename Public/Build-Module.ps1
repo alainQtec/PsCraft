@@ -214,13 +214,11 @@
 
         Task Clean {
           $Host.UI.WriteLine();
-          Write-Heading "CleanUp: Remove module '$ProjectName', env variables, and clean any LocalPSRepo"
-          if ($ProjectName) { Remove-Module $ProjectName -Verbose:$false -Force -ea Ignore | Out-Null }
+          Write-Heading "CleanUp: Module '$ProjectName' env variables and previous build Output"
           if (Test-Path -Path $outputDir -PathType Container -ea Ignore) {
-            Write-Verbose "Cleaning Previous build Output ..."
             Get-ChildItem -Path $outputDir -Recurse -Force | Remove-Item -Force -Recurse -Verbose:$false | Out-Null
+            Write-Host "    Removed previous Output directory [$outputDir]" -F Green
           }
-          Write-Host "    Removed previous Output directory [$outputDir]" -F Green
         } -Description 'Cleans module output directory'
 
         Task Test -Depends Compile {
