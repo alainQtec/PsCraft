@@ -46,7 +46,7 @@ For more usage read the [docs](/docs/Readme.md). they pretty easy!
 
 - [x] **Create & Manage** modules: `PsCraft.ModuleManager.psm1`
 
-- [ ] Add **CodeSigning** Functions: `PsCraft.CodeSigner.psm1`
+- [x] Add **CodeSigning** Functions: `PsCraft.CodeSigner.psm1`
 
   <p>Cross-platform <a href ="https://learn.microsoft.com/en-us/previous-versions/windows/hardware/design/dn653556(v=vs.85)">code signing</a>.</p>
 
