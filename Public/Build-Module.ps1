@@ -12,8 +12,6 @@
   #    Build-Module deploy
   #    Will build the module, test it and deploy it to PsGallery
   # .LINK
-  #    https://gist.github.com/alainQtec/a6f7d638bcf1c57658897d1c0b93cac9
-  # .LINK
   #    https://github.com/alainQtec/PsCraft/blob/main/public/Build-Module.ps1
   [cmdletbinding(DefaultParameterSetName = 'task')]
   param(
@@ -411,9 +409,13 @@
     $psds = (Get-Module -Name $build_requirements -ListAvailable -Verbose:$false).Path | Sort-Object -Unique { Split-Path $_ -Leaf }
     $psds | Import-Module -Verbose:$false -ea Stop
     #endregion buildrequirements
-    $Psake_BuildFile = New-Item $([IO.Path]::GetTempFileName().Replace('.tmp', '.ps1'))
-    if ($Help) { Write-Heading "Getting help"; Get-PSakeScriptTasks -BuildFile $Psake_BuildFile.FullName | Sort-Object -Property Name | Format-Table -Property Name, Description, Alias, DependsOn; exit 0 };
     try {
+      $Psake_BuildFile = New-Item $([IO.Path]::GetTempFileName().Replace('.tmp', '.ps1'))
+      Set-Content -Path $Psake_BuildFile -Value $script:PSake_ScriptBlock.ToString().Replace('<build_requirements>', [string]('@("' + ($build_requirements -join '", "') + '")')) | Out-Null
+      if ($Help.IsPresent) {
+        Write-Heading "Getting help"; Get-PSakeScriptTasks -BuildFile $Psake_BuildFile.FullName | Sort-Object -Property Name | Format-Table -Property Name, Description, Alias, DependsOn;
+        exit 0
+      };
       [Environment]::SetEnvironmentVariable('IsAC', $(if (![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('GITHUB_WORKFLOW'))) { '1' } else { '0' }), [System.EnvironmentVariableTarget]::Process)
       [Environment]::SetEnvironmentVariable('IsCI', $(if (![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('TF_BUILD'))) { '1' } else { '0' }), [System.EnvironmentVariableTarget]::Process)
       [Environment]::SetEnvironmentVariable('RUN_ID', $(if ([bool][int]$env:IsAC -or $env:CI -eq "true") { [Environment]::GetEnvironmentVariable('GITHUB_RUN_ID') }else { [Guid]::NewGuid().Guid.substring(0, 21).replace('-', [string]::Join('', (0..9 | Get-Random -Count 1))) + '_' }), [System.EnvironmentVariableTarget]::Process);
@@ -424,8 +426,6 @@
       } else {
         Set-Variable -Name ExcludeTag -Scope global -Value $null
       }
-      $_content = [string]$script:PSake_ScriptBlock.ToString()
-      Set-Content -Path $Psake_BuildFile -Value $_content.Replace('<build_requirements>', [string]('@("' + ($build_requirements -join '", "') + '")')) -Encoding UTF8 | Out-Null
       $psakeParams = @{
         nologo    = $true
         buildFile = $Psake_BuildFile.FullName
