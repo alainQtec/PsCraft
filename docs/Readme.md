@@ -34,7 +34,7 @@ The only code you are expected to write is in <a href="/Public/">Public</a> func
 First make sure you install and Import the module.
 
 ```PowerShell
-Install-Module PsCraft -Passthru | Install-Module
+Import-Module PsCraft
 ```
 
 ### **Create a module with** PsCraft
@@ -60,14 +60,20 @@ Add-GUI -Script MyNewScript.ps1
 
 ---
 
-## NOTE: [WIP] ...More stuff comming.
+### [WIP] ...
 
-<!--
-remove x0B
+todo: fix Unresolved **bugs**:
 
- ls -File -Recurse -Force | ForEach-Object { &sed 's/\x0B//g' $_.FullName > $([IO.Path::Combine($_.Directory.FullName, $_.Name.Replace($_.BaseName, ($_.BaseName + "_clean_")))) };
+1. remove any invisible characters from imported code.
+
+Example: removing any x0B
+
+```PowerShell
+ ls -File -Recurse -Force | ForEach-Object { &sed 's/\x0B//g' $_.FullName > $(
+  [IO.Path]::Combine($_.Directory.FullName, $_.Name.Replace($_.BaseName, ($_.BaseName + "_clean_"))))
+};
 
 (ls -File -Recurse -Force).Where({ !$_.BaseName.contains("_clean_") }).ForEach({ Remove-Item $_ -Verbose });
 
 (ls -File -Recurse -Force).ForEach({ Rename-Item $_.FullName -NewName $_.Name.Replace("_clean_", "") -Verbose })
- -->
+```

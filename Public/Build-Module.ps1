@@ -375,10 +375,6 @@
         }
       }
     )
-    $script:Clean_EnvBuildvariables = [scriptblock]::Create({
-
-      }
-    )
     $psd1 = [IO.Path]::Combine($Path, "$([IO.DirectoryInfo]::new($Path).BaseName).psd1")
     if ([IO.File]::Exists($psd1)) {
       $data = [PsObject]([scriptblock]::Create("$([IO.File]::ReadAllText($psd1))").Invoke() | Select-Object *)

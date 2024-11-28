@@ -1,9 +1,12 @@
+using namespace System
+using namespace System.IO
+using namespace System.Management.Automation
 <#
 .SYNOPSIS
     Run Tests
 .EXAMPLE
-    .\Test-Module.ps1 -version 0.1.0
-    Will test the module in .\BuildOutput\PsCraft\0.1.0\
+    .\Test-Module.ps1 -version 0.1.7
+    Will test the module in .\BuildOutput\PsCraft\0.1.7\
 .EXAMPLE
     .\Test-Module.ps1
     Will test the latest  module version in .\BuildOutput\PsCraft\

@@ -121,7 +121,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
   [void] SetBuildVariables([string]$RootPath, [string]$Prefix) {
     [ValidateNotNullOrWhiteSpace()][string]$Prefix = $Prefix
     [validateNotNullOrWhiteSpace()][string]$RootPath = $RootPath
-    Resolve-Module cliHelper.env -ro -ea Stop -verbose:$false
+    Resolve-Module cliHelper.env -ro -ea Stop -Verbose:$false
     if (![bool][int]$env:IsAC) {
       $LocEnvFile = [IO.FileInfo]::New([Path]::GetFullPath([Path]::Combine($RootPath, '.env')))
       if (!$LocEnvFile.Exists) {
@@ -410,7 +410,7 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
                 GitHubApiKey     = $env:GitHubPAT
                 Draft            = $false
               }
-              Publish-GithubRelease @gitHubParams
+              Publish-GitHubRelease @gitHubParams
               [void][ModuleManager]::WriteHeading("    Github release created successful!")
             } else {
               if ($Is_Lower_GitHub_Version) { Write-Warning "SKIPPED Releasing. Module version $current_build_version already exists on Github!" }
@@ -1220,23 +1220,31 @@ class PsModule {
       License               = [PsModuleData]::LICENSE_TXT ? [PsModuleData]::LICENSE_TXT : [PsModule]::GetModuleLicenseText()
       ReleaseNotes          = "# Release Notes`n`n## Version _<ModuleVersion>_`n`n### New Features`n`n- Added feature abc.`n- Added feature defg.`n`n## Changelog`n`n  >..."
       Builder               = {
+        #!/usr/bin/env pwsh
         # .SYNOPSIS
-        #   <ModuleName> build script
+        #   <ModuleName> buildScript
         # .DESCRIPTION
-        #   A build script that uses a builder module 🗿
+        #   A custom build script for the module <ModuleName>
         # .LINK
         #   https://github.com/<UserName>/<ModuleName>/blob/main/build.ps1
+        # .EXAMPLE
+        #   ./build.ps1 -Task Test
+        #   This Will build the module, Import it and run tests using the ./Test-Module.ps1 script.
+        #   ie: running ./build.ps1 only will "Compile & Import" the module; That's it, no tests.
+        # .EXAMPLE
+        #   ./build.ps1 -Task deploy
+        #   Will build the module, test it and deploy it to PsGallery
         # .NOTES
         #   Author   : <Author>
         #   Copyright: <Copyright>
         #   License  : MIT
         [cmdletbinding(DefaultParameterSetName = 'task')]
         param(
-          [parameter(Position = 0, ParameterSetName = 'task')]
+          [parameter(Mandatory = $false, Position = 0, ParameterSetName = 'task')]
           [ValidateScript({
               $task_seq = [string[]]$_; $IsValid = $true
-              $Tasks = @('Init', 'Clean', 'Compile', 'Import', 'Test', 'Deploy')
-              ForEach ($name in $task_seq) {
+              $Tasks = @('Clean', 'Compile', 'Test', 'Deploy')
+              foreach ($name in $task_seq) {
                 $IsValid = $IsValid -and ($name -in $Tasks)
               }
               if ($IsValid) {
@@ -1245,15 +1253,41 @@ class PsModule {
                 throw [System.ArgumentException]::new('Task', "ValidSet: $($Tasks -join ', ').")
               }
             }
-          )][ValidateNotNullOrEmpty()]
-          [string[]]$Task = @('Init', 'Clean', 'Compile', 'Import'),
+          )][ValidateNotNullOrEmpty()][Alias('t')]
+          [string[]]$Task = 'Test',
+
+          # Module buildRoot
+          [Parameter(Mandatory = $false, Position = 1, ParameterSetName = 'task')]
+          [ValidateScript({
+              if (Test-Path -Path $_ -PathType Container -ea Ignore) {
+                return $true
+              } else {
+                throw [System.ArgumentException]::new('Path', "Path: $_ is not a valid directory.")
+              }
+            })][Alias('p')]
+          [string]$Path = (Resolve-Path .).Path,
+
+          [Parameter(Mandatory = $false, ParameterSetName = 'task')]
+          [string[]]$RequiredModules = @(),
+
+          [parameter(ParameterSetName = 'task')]
+          [Alias('i')]
+          [switch]$Import,
 
           [parameter(ParameterSetName = 'help')]
-          [Alias('-Help')]
+          [Alias('h', '-help')]
           [switch]$Help
         )
-        # Import the "buider module" and use Build-Module cmdlet to build this module:
-        Import-Module PsCraft; Build-Module -Task $Task
+
+        begin {
+          if ($PSCmdlet.ParameterSetName -eq 'help') { Get-Help $MyInvocation.MyCommand.Source -Full | Out-String | Write-Host -f Green; return }
+          $req = Invoke-WebRequest -Method Get -Uri https://raw.githubusercontent.com/alainQtec/PsCraft/refs/heads/main/Public/Build-Module.ps1 -SkipHttpErrorCheck -Verbose:$false
+          if ($req.StatusCode -ne 200) { throw "Failed to download Build-Module.ps1" }
+          . ([ScriptBlock]::Create("$($req.Content)"))
+        }
+        process {
+          Build-Module -Task $Task -Path $Path -Import:$Import
+        }
       }
       Localdata             = {
         @{
@@ -1266,36 +1300,56 @@ class PsModule {
         #!/usr/bin/env pwsh
         #region    Classes
         #endregion Classes
-        $Private = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Private')) -Filter "*.ps1" -ErrorAction SilentlyContinue
-        $Public = Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Public')) -Filter "*.ps1" -ErrorAction SilentlyContinue
-        # Load dependencies
-        $PrivateModules = [string[]](Get-ChildItem ([IO.Path]::Combine($PSScriptRoot, 'Private')) -ErrorAction SilentlyContinue | Where-Object { $_.PSIsContainer } | Select-Object -ExpandProperty FullName)
-        if ($PrivateModules.Count -gt 0) {
-          ForEach ($Module in $PrivateModules) {
-            Try {
-              Import-Module $Module -ErrorAction Stop
-            } Catch {
-              Write-Error "Failed to import module $Module : $_"
-            }
+        # Types that will be available to users when they import the module.
+        $typestoExport = @()
+        $TypeAcceleratorsClass = [PsObject].Assembly.GetType('System.Management.Automation.TypeAccelerators')
+        foreach ($Type in $typestoExport) {
+          if ($Type.FullName -in $TypeAcceleratorsClass::Get.Keys) {
+            $Message = @(
+              "Unable to register type accelerator '$($Type.FullName)'"
+              'Accelerator already exists.'
+            ) -join ' - '
+
+            [System.Management.Automation.ErrorRecord]::new(
+              [System.InvalidOperationException]::new($Message),
+              'TypeAcceleratorAlreadyExists',
+              [System.Management.Automation.ErrorCategory]::InvalidOperation,
+              $Type.FullName
+            ) | Write-Warning
           }
         }
-        # Dot source the files
-        ForEach ($Import in ($Public, $Private)) {
+        # Add type accelerators for every exportable type.
+        foreach ($Type in $typestoExport) {
+          $TypeAcceleratorsClass::Add($Type.FullName, $Type)
+        }
+        # Remove type accelerators when the module is removed.
+        $MyInvocation.MyCommand.ScriptBlock.Module.OnRemove = {
+          foreach ($Type in $typestoExport) {
+            $TypeAcceleratorsClass::Remove($Type.FullName)
+          }
+        }.GetNewClosure();
+
+        $scripts = @();
+        $Public = Get-ChildItem "$PSScriptRoot/Public" -Filter "*.ps1" -Recurse -ErrorAction SilentlyContinue
+        $scripts += Get-ChildItem "$PSScriptRoot/Private" -Filter "*.ps1" -Recurse -ErrorAction SilentlyContinue
+        $scripts += $Public
+
+        foreach ($file in $scripts) {
           Try {
-            . $Import.fullname
+            if ([string]::IsNullOrWhiteSpace($file.fullname)) { continue }
+            . "$($file.fullname)"
           } Catch {
-            Write-Warning "Failed to import function $($Import.BaseName): $_"
+            Write-Warning "Failed to import function $($file.BaseName): $_"
             $host.UI.WriteErrorLine($_)
           }
         }
-        # Export Public Functions
+
         $Param = @{
           Function = $Public.BaseName
-          Variable = '*'
           Cmdlet   = '*'
           Alias    = '*'
         }
-        Export-ModuleMember @Param -Verbose
+        Export-ModuleMember @Param
       }
       ModuleTest            = {
         $script:ModuleName = (Get-Item "$PSScriptRoot/..").Name
@@ -1317,7 +1371,7 @@ class PsModule {
         $script:ExportedFunctions = $ModuleInformation.ExportedFunctions.Values.Name
         Write-Host "      ExportedFunctions: " -ForegroundColor DarkGray -NoNewline
         Write-Host $($ExportedFunctions -join ', ')
-        $script:PS1Functions = Get-ChildItem -Path "$ModulePath/$moduleVersion/Public/*.ps1"
+        $script:PS1Functions = Get-ChildItem -Path "$ModulePath/$moduleVersion/Public/*.ps1" -Recurse
 
         Describe "Module tests for $($([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')))" {
           Context " Confirm valid Manifest file" {
@@ -1394,6 +1448,19 @@ class PsModule {
           # TODO: Add more contexts and tests to cover various features and functionalities.
         }
       }
+      IntegrationTest       = {
+        # verify the interactions and behavior of the module's components when they are integrated together.
+        Describe "Integration tests: PsCraft" {
+          Context "Functionality Integration" {
+            It "Performs expected action" {
+              # Here you can write tests to simulate the usage of your functions and validate their behavior.
+              # For instance, if your module provides cmdlets to customize the command-line environment,
+              # you could simulate the invocation of those cmdlets and check if the environment is modified as expected.
+            }
+          }
+          # TODO: Add more contexts and tests as needed to cover various integration scenarios.
+        }
+      }
       ScriptAnalyzer        = {
         @{
           IncludeDefaultRules = $true
@@ -1447,19 +1514,6 @@ class PsModule {
               Enable = $true
             }
           }
-        }
-      }
-      IntegrationTest       = {
-        # verify the interactions and behavior of the module's components when they are integrated together.
-        Describe "Integration tests: PsCraft" {
-          Context "Functionality Integration" {
-            It "Performs expected action" {
-              # Here you can write tests to simulate the usage of your functions and validate their behavior.
-              # For instance, if your module provides cmdlets to customize the command-line environment,
-              # you could simulate the invocation of those cmdlets and check if the environment is modified as expected.
-            }
-          }
-          # TODO: Add more contexts and tests as needed to cover various integration scenarios.
         }
       }
       DelWorkflowsyaml      = [PsModule]::GetModuleDelWorkflowsyaml()
@@ -1729,7 +1783,6 @@ class AliasVisitor : System.Management.Automation.Language.AstVisitor {
           }
         }
       }
-
       $this.Parameter = $null
       # If we have enough information, stop the visit
       # For -Scope global or Remove-Alias, we don't want to export these
