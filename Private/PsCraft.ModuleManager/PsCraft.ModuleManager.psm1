@@ -625,9 +625,15 @@ class PsModuleData {
 
         begin {
           if ($PSCmdlet.ParameterSetName -eq 'help') { Get-Help $MyInvocation.MyCommand.Source -Full | Out-String | Write-Host -f Green; return }
-          $req = Invoke-WebRequest -Method Get -Uri https://raw.githubusercontent.com/alainQtec/PsCraft/refs/heads/main/Public/Build-Module.ps1 -SkipHttpErrorCheck -Verbose:$false
-          if ($req.StatusCode -ne 200) { throw "Failed to download Build-Module.ps1" }
-          $t = New-Item $([IO.Path]::GetTempFileName().Replace('.tmp', '.ps1')) -Verbose:$false; Set-Content -Path $t.FullName -Value $req.Content; . $t.FullName; Remove-Item $t.FullName -Verbose:$false
+          $target = "https://www.github.com"; if ($(try { [System.Net.NetworkInformation.PingReply]$PingReply = [System.Net.NetworkInformation.Ping]::new().Send($target); $PingReply.Status -eq [System.Net.NetworkInformation.IPStatus]::Success } catch [System.Net.Sockets.SocketException], [System.Net.NetworkInformation.PingException] { Write-Verbose "Ping $target : $($_.Exception.InnerException.Message)"; $false })) {
+            $req = Invoke-WebRequest -Method Get -Uri https://raw.githubusercontent.com/alainQtec/PsCraft/refs/heads/main/Public/Build-Module.ps1 -SkipHttpErrorCheck -Verbose:$false
+            if ($req.StatusCode -ne 200) { throw "Failed to download Build-Module.ps1" }
+            $t = New-Item $([IO.Path]::GetTempFileName().Replace('.tmp', '.ps1')) -Verbose:$false; Set-Content -Path $t.FullName -Value $req.Content; . $t.FullName; Remove-Item $t.FullName -Verbose:$false
+          } else {
+            $m = Get-InstalledModule PsCraft -Verbose:$false -ea Ignore
+            $b = [IO.FileInfo][IO.Path]::Combine($m.InstalledLocation, 'Public', 'Build-Module.ps1')
+            if ($b.Exists) { . $b.FullName }
+          }
         }
         process {
           Build-Module -Task $Task -Path $Path -Import:$Import

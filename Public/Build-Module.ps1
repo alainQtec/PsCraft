@@ -95,7 +95,8 @@
           [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]$security_protocol
           $buildrequirements.ForEach({ Import-Module $_ -Verbose:$false -ea Stop }); $Host.ui.WriteLine();
           #Make sure everything is updated to the latest version:
-          $buildrequirements | PsCraft\Resolve-Module -Update -Verbose:$false
+          $target = "https://www.powershellgallery.com"; $Isconnected = $(try { [System.Net.NetworkInformation.PingReply]$PingReply = [System.Net.NetworkInformation.Ping]::new().Send($target); $PingReply.Status -eq [System.Net.NetworkInformation.IPStatus]::Success } catch [System.Net.Sockets.SocketException], [System.Net.NetworkInformation.PingException] { Write-Verbose "Ping $target : $($_.Exception.InnerException.Message)"; $false });
+          if ($Isconnected) { $buildrequirements | PsCraft\Resolve-Module -Update -Verbose:$false }
           Write-EnvironmentSummary "Initialize [$ProjectName] build environment"
           Set-Location $ProjectRoot; Write-Verbose "Module Build version: $BuildNumber"
           $Host.ui.WriteLine()
@@ -224,11 +225,15 @@
         Task Test -Depends Compile {
           Write-Heading "Executing Script: ./Test-Module.ps1"
           $test_Script = [IO.FileInfo]::New([IO.Path]::Combine($ProjectRoot, 'Test-Module.ps1'))
-          if (!$test_Script.Exists) { $Cmdlet.ThrowTerminatingError([System.Management.Automation.ErrorRecord]::new([System.IO.FileNotFoundException]::New($test_Script.FullName), 'CouldNotFindTestScript', 'ObjectNotFound', $test_Script.FullName)) }
+          if (!$test_Script.Exists) {
+            $_err_r = [System.Management.Automation.ErrorRecord]::new([System.IO.FileNotFoundException]::New($test_Script.FullName), 'CouldNotFindTestScript', 'ObjectNotFound', $test_Script.FullName)
+            $(Get-Variable psake -Scope global -ValueOnly).error_message = $_err_r
+            $Cmdlet.ThrowTerminatingError($_err_r)
+          }
           Import-Module Pester -Verbose:$false -Force -ea Stop
           $origModulePath = $Env:PSModulePath
           Push-Location $ProjectRoot
-          if ($Env:PSModulePath.split($pathSeperator) -notcontains $outputDir ) {
+          if ($Env:PSModulePath.split($pathSeperator) -notcontains $outputDir) {
             $Env:PSModulePath = ($outputDir + $pathSeperator + $origModulePath)
           }
           Remove-Module $ProjectName -ea SilentlyContinue -Verbose:$false
@@ -238,7 +243,7 @@
           Write-Host '    Pester invocation complete!' -ForegroundColor Green
           $TestResults | Format-List
           if ($TestResults.FailedCount -gt 0) {
-            $Cmdlet.WriteError([System.Management.Automation.ErrorRecord]::new([Exception]::new("One or more Pester tests failed!"), "PesterTestsFailed", 'OperationStopped', @{}))
+            $(Get-Variable psake -Scope global -ValueOnly).error_message = [System.Management.Automation.ErrorRecord]::new([Exception]::new("One or more Pester tests failed!"), "PesterTestsFailed", 'OperationStopped', @{})
           }
           Pop-Location
           $Env:PSModulePath = $origModulePath
@@ -395,14 +400,24 @@
     #endregion packagefeed
     #region    buildrequirements
     Write-Host "Resolve build requirements: [$($build_requirements -join ', ')]" -f Green
-    $build_requirements.ForEach({
-        try {
-          Install-Module $_ -Verbose:$false -ea Stop; Write-Host " [+] Installed module $_" -f Green
-        } catch {
-          $PSCmdlet.ThrowTerminatingError($_)
+    $target = "https://www.powershellgallery.com"; $Isconnected = $(try { [System.Net.NetworkInformation.PingReply]$PingReply = [System.Net.NetworkInformation.Ping]::new().Send($target); $PingReply.Status -eq [System.Net.NetworkInformation.IPStatus]::Success } catch [System.Net.Sockets.SocketException], [System.Net.NetworkInformation.PingException] { Write-Verbose "Ping $target : $($_.Exception.InnerException.Message)"; $false });
+    $InstalledModules = $(if (!$Isconnected) { (Get-Module -Verbose:$false) + (Get-InstalledModule -Verbose:$false) | Select-Object -Unique -ExpandProperty Name } else { @() })
+    $L = (($build_requirements | Select-Object @{l = 'L'; e = { $_.Length } }).L | Sort-Object -Descending)[0]
+    foreach ($name in $build_requirements) {
+      try {
+        if ($Isconnected) {
+          Install-Module $name -Verbose:$false -ea Stop;
+          Write-Host " [+] Installed module $name" -f Green
+          continue
         }
+        if ($InstalledModules -notcontains $name) {
+          throw [System.Management.Automation.ItemNotFoundException]::new("Module $name is not installed.")
+        }
+        Write-Host " [+] Module $name$(' '* $($L - $name.Length))was already installed" -f Green
+      } catch {
+        $PSCmdlet.ThrowTerminatingError($_)
       }
-    )
+    }
     $psds = (Get-Module -Name $build_requirements -ListAvailable -Verbose:$false).Path | Sort-Object -Unique { Split-Path $_ -Leaf }
     $psds | Import-Module -Verbose:$false -ea Stop
     #endregion buildrequirements
@@ -430,9 +445,10 @@
       }
       Invoke-psake @psakeParams @verbose
     } catch {
-      $psake.error_message += ($_ | Format-List * -Force | Out-String).Trim()
+      $psake.error_message = $_
       $PSCmdlet.ThrowTerminatingError($_)
     } finally {
+      $psake.build_success = $null -eq $psake.error_message
       $LocalPSRepo = [IO.Path]::Combine([environment]::GetEnvironmentVariable("HOME"), 'LocalPSRepo'); $Host.UI.WriteLine()
       Remove-Item $Psake_BuildFile -ea Ignore -Verbose:$false | Out-Null
       if ($psake.build_success) {
@@ -460,9 +476,7 @@
             Publish-Module -Path $mdPath -Repository LocalPSRepo -Verbose:$false -ea Ignore
           }
           Publish-Module -Path $ModulePath -Repository LocalPSRepo
-          # Install Module
           Install-Module $ModuleName -Repository LocalPSRepo
-          # Import Module
           if ($Import.IsPresent -and $(Get-Variable psake -Scope global -ValueOnly).build_success) {
             Write-Heading "Import $ModuleName to local scope"
             # Import-Module $([IO.Path]::Combine([Environment]::GetEnvironmentVariable($env:RUN_ID + 'BuildOutput'), $ModuleName))
@@ -483,10 +497,10 @@
               [Environment]::SetEnvironmentVariable($Name, $null)
             }
           } else {
-            Write-BuildLog "No old Env variables to remove; Move on ...`n"
+            Write-BuildLog "No env variables to remove; Move on ...`n"
           }
         } else {
-          Write-Warning "Invalid RUN_ID! Skipped 'Remove env variables' ...`n"
+          Write-Warning "Invalid RUN_ID! can't remove env variables.`n"
         }
         if ($ModuleName) { Uninstall-Module $ModuleName -MinimumVersion $BuildNumber -ea Ignore }
         if ([IO.Directory]::Exists($LocalPSRepo)) {
