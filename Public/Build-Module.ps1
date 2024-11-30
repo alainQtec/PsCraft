@@ -303,7 +303,7 @@
             try {
               [ValidateNotNullOrWhiteSpace()][string]$versionToDeploy = $versionToDeploy.ToString()
               $manifest = Import-PowerShellDataFile -Path $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'PSModuleManifest'))
-              $latest_Github_release = Invoke-WebRequest "https://api.github.com/repos/alainQtec/PsCraft/releases/latest" | ConvertFrom-Json
+              $latest_Github_release = Invoke-WebRequest "https://api.github.com/repos/alainQtec/$ProjectName/releases/latest" | ConvertFrom-Json
               $latest_Github_release = [PSCustomObject]@{
                 name = $latest_Github_release.name
                 ver  = [version]::new($latest_Github_release.tag_name.substring(1))
@@ -331,7 +331,7 @@
                 if ($Is_Lower_PsGallery_Version) { Write-Warning "SKIPPED Publishing. Module version $Latest_Module_Verion already exists on PsGallery!" }
                 Write-Verbose "    SKIPPED Publish of version [$versionToDeploy] to PSGallery"
               }
-              $commitId = git rev-parse --verify HEAD;
+              $commitId = $(try { git rev-parse --verify HEAD } catch { Write-Warning $_; $null });
               if ($should_Publish_GitHubRelease) {
                 $ReleaseNotes = [Environment]::GetEnvironmentVariable($env:RUN_ID + 'ReleaseNotes')
                 [ValidateNotNullOrWhiteSpace()][string]$ReleaseNotes = $ReleaseNotes
@@ -349,7 +349,7 @@
                   CommitId         = $commitId
                   ReleaseNotes     = [Environment]::GetEnvironmentVariable($env:RUN_ID + 'ReleaseNotes')
                   ArtifactPath     = $ZipTmpPath
-                  GitHubUsername   = 'alainQtec'
+                  GitHubUsername   = $(try { [string][uri]::new((git config --get remote.origin.url)).Segments[1].Replace('/', '') } catch { Write-Warning $_; $null })
                   GitHubRepository = [Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')
                   GitHubApiKey     = $env:GitHubPAT
                   Draft            = $false
@@ -453,7 +453,7 @@
             Remove-Item -Path $ModulePackage -ea 'SilentlyContinue'
           }
           Write-Heading "Publish to Local PsRepository"
-          $RequiredModules = Get-ModuleManifest ([IO.Path]::Combine($ModulePath, "$([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')).psd1")) RequiredModules -Verbose:$false
+          $RequiredModules = Read-ModuleData -File ([IO.Path]::Combine($ModulePath, "$([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName')).psd1")) -Property RequiredModules -Verbose:$false
           foreach ($Module in $RequiredModules) {
             $mdPath = (Get-Module $Module -ListAvailable -Verbose:$false)[0].Path | Split-Path
             Write-Verbose "Publish RequiredModule $Module ..."

@@ -1,11 +1,12 @@
 ﻿function Write-EnvironmentSummary {
   param(
     [parameter(Position = 0, ValueFromRemainingArguments)]
+    [ValidateNotNullOrWhiteSpace()]
     [String]$State
   )
   Process {
     $Host.ui.WriteLine()
-    Write-Heading -Title "Build Environment Summary:`n"
+    Write-Heading "Build Environment Summary:`n"
     @(
       $(if ($([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName'))) { "Project : $([Environment]::GetEnvironmentVariable($env:RUN_ID + 'ProjectName'))" })
       $(if ($State) { "State   : $State" })

@@ -2,7 +2,7 @@
   # .SYNOPSIS
   #   Reads a specific value from a PowerShell metdata file (e.g. a module manifest)
   # .DESCRIPTION
-  #   By default Get-ModuleManifest gets the ModuleVersion, but it can read any key in the metadata file
+  #   By default Get-ModuleManifest gets all keys in the metadata file
   # .LINK
   #   https://github.com/alainQtec/PsCraft/blob/main/Public/Read-ModuleData.ps1
   # .EXAMPLE
@@ -32,7 +32,7 @@
     $Path = (Resolve-Path .).Path
   )
   begin {
-    $Path = Resolve-Path $Path
+    [string]$Path = Resolve-Path $Path
     if (!$PSCmdlet.MyInvocation.BoundParameters.ContainsKey('File')) {
       $File = [IO.Path]::Combine($Path, (Get-Culture).Name, "$([IO.DirectoryInfo]::New($Path).BaseName).strings.psd1");
     }; $File = Resolve-Path $File;
@@ -40,11 +40,9 @@
     if (!$IsValidPsd1file) {
       throw [System.ArgumentException]::new("File '$File' is not valid. Please provide a valid path/to/<modulename>.Strings.psd1", 'Path')
     }
-  }
-  process {
     if (!(Test-Path $File)) {
       $Error_params = @{
-        ExceptionName    = "ItemNotFoundException"
+        ExceptionName    = "System.Management.Automation.ItemNotFoundException"
         ExceptionMessage = "Can't find file $File"
         ErrorId          = "PathNotFound,Metadata\Import-Metadata"
         Caller           = $PSCmdlet
@@ -52,21 +50,15 @@
       }
       Write-TerminatingError @Error_params
     }
-    if ([string]::IsNullOrWhiteSpace($Property)) {
-      $null = Get-Item -Path $File -ErrorAction Stop
-      $data = New-Object PsObject; $text = [IO.File]::ReadAllText("$File")
-      $data = [scriptblock]::Create("$text").Invoke()
-      return $data
-    }
-    $Tokens = $Null; $ParseErrors = $Null
-    # Search the Manifest root properties, and also the nested hashtable properties.
-    if ([IO.Path]::GetExtension($_) -ne ".psd1") { throw "Path must point to a .psd1 file" }
-    $AST = [Parser]::ParseFile($File, [ref]$Tokens, [ref]$ParseErrors)
-    $KeyValue = $Ast.EndBlock.Statements
-    $KeyValue = @([PsCraft]::FindHashKeyValue($Property, $KeyValue))
-    if ($KeyValue.Count -eq 0) {
+  }
+  process {
+    $data = New-Object PsObject; $text = [IO.File]::ReadAllText($File)
+    $data = [scriptblock]::Create("$text").Invoke()
+    if ([string]::IsNullOrWhiteSpace($Property)) { return $data }
+    $r = $data.$Property
+    if ($null -eq $r) {
       $Error_params = @{
-        ExceptionName    = "ItemNotFoundException"
+        ExceptionName    = "System.Management.Automation.ItemNotFoundException"
         ExceptionMessage = "Can't find '$Property' in $File"
         ErrorId          = "PropertyNotFound,Metadata\Get-Metadata"
         Caller           = $PSCmdlet
@@ -74,23 +66,16 @@
       }
       Write-TerminatingError @Error_params
     }
-    if ($KeyValue.Count -gt 1) {
-      $SingleKey = @($KeyValue | Where-Object { $_.HashKeyPath -eq $Property })
-      if ($SingleKey.Count -gt 1) {
-        $Error_params = @{
-          ExceptionName    = "System.Reflection.AmbiguousMatchException"
-          ExceptionMessage = "Found more than one '$Property' in $File. Please specify a dotted path instead. Matching paths include: '{0}'" -f ($KeyValue.HashKeyPath -join "', '")
-          ErrorId          = "AmbiguousMatch,Metadata\Get-Metadata"
-          Caller           = $PSCmdlet
-          ErrorCategory    = "InvalidArgument"
-        }
-        Write-TerminatingError @Error_params
-      } else {
-        $KeyValue = $SingleKey
+    if ($r.Count -gt 1) {
+      $Error_params = @{
+        ExceptionName    = "System.Reflection.AmbiguousMatchException"
+        ExceptionMessage = "Found more than one '$Property' in $File. Please specify a dotted path instead. Matching paths include: '{0}'" -f ($KeyValue.HashKeyPath -join "', '")
+        ErrorId          = "AmbiguousMatch,Metadata\Get-Metadata"
+        Caller           = $PSCmdlet
+        ErrorCategory    = "InvalidArgument"
       }
+      Write-TerminatingError @Error_params
     }
-    $KeyValue = $KeyValue[0]
-    # $KeyValue.SafeGetValue()
-    return $KeyValue
+    return $r
   }
 }

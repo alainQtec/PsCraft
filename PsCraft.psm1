@@ -10,7 +10,6 @@ using module Private/PsCraft.ModuleManager
 #  [PsModule]$module = New-PsModule "MyModule"   # Creates a new module named "MyModule" in $pwd
 #  $builder = [PsCraft]::new($module.Path)
 class PsCraft : ModuleManager {
-  static [PsObject] $LocalizedData = (Read-ModuleData)
   static [LocalPsModule[]] Search([string]$Name) {
     [ValidateNotNullOrWhiteSpace()][string]$Name = $Name
     $res = @(); $AvailModls = Get-Module -ListAvailable -Name $Name -Verbose:$false -ErrorAction Ignore
@@ -32,6 +31,7 @@ class PsCraft : ModuleManager {
 $typestoExport = @(
   [moduleManager],
   [LocalPsModule],
+  [PsModuleData],
   [PsModule],
   [PsCraft]
 )

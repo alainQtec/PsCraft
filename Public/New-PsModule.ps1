@@ -95,10 +95,7 @@
           $n = $_; $isBound = $PSCmdlet.MyInvocation.BoundParameters.ContainsKey($n)
           $value = if ($isBound) { $PSCmdlet.MyInvocation.BoundParameters[$n] } else { Get-Variable -Name $n -ValueOnly }
           # Write-Verbose "$n = $value $(if(!$isBound){'(default)'})"
-          if ($null -ne $value) {
-            #ie: [void]$Module.Data.Where({ $_.Key -eq $n }).set_Value($value) # but faster.
-            [void]$Module.SetValue($_, $value)
-          }
+          if ($null -ne $value) { $Module.Set($_, $value) }
         }
       )
     } else {
@@ -107,9 +104,9 @@
       throw "Config params r not yet supported (WIP)"
     }
     if ($PSCmdlet.ShouldProcess("", "", "Format and Write Module folder structure")) {
-      [void]$Module.save()
-      if ([IO.Directory]::Exists($Module.Path.FullName)) {
-        cliHelper.core\Show-Tree $Module.Path.FullName -Depth 5 | Out-Host
+      [void]$Module.save(); $_p = $Module.Path.FullName
+      if ([IO.Directory]::Exists($_p)) {
+        ([bool](Get-Command tree -CommandType Application -ea Ignore) ? (tree $_p) : (cliHelper.core\Show-Tree $_p -Depth 5)) | Out-Host
       }
     }
   }
