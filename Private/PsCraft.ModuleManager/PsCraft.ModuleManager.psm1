@@ -56,16 +56,6 @@ class ModuleManager : Microsoft.PowerShell.Commands.ModuleCmdletBase {
   static [PSCmdlet]$CallerCmdlet
   static [bool]$Useverbose
   [List[string]]$TaskList
-  [List[string]]$RequiredModules = @(
-    "PackageManagement"
-    "PSScriptAnalyzer"
-    "cliHelper.core"
-    "cliHelper.env"
-    "PowerShellGet"
-    "PsCraft"
-    "Pester"
-    "Psake"
-  )
 
   ModuleManager() {}
   ModuleManager([string]$RootPath) { [void][ModuleManager]::_Create($RootPath, $this) }
