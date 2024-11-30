@@ -38,7 +38,7 @@
         $l + $_
       }
     } else {
-      $date = "$([ModuleManager]::GetElapsed()) "
+      $date = "$(Get-Elapsed) "
       if ($Cmd) {
         $i = 0
         $Message -split "[\r\n]" | Where-Object { $_ } | ForEach-Object {

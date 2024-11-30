@@ -8,7 +8,7 @@
   param (
     [parameter(Mandatory = $false)]
     [AllowNull()][System.Management.Automation.PSCmdlet]
-    $Caller = $null,
+    $Caller = $PSCmdlet,
 
     [parameter(Mandatory = $true)]
     [ValidateNotNullOrEmpty()][String]
@@ -35,10 +35,10 @@
     $errorRecord = [System.Management.Automation.ErrorRecord]::new($exception, $ErrorId, $ErrorCategory, $ExceptionObject)
   }
   end {
-    if ($null -ne $Caller) {
-      $Caller.ThrowTerminatingError($errorRecord)
+    if ($null -eq $Caller) {
+      $PSCmdlet.ThrowTerminatingError($errorRecord)
     } else {
-      throw $errorRecord
+      $Caller.ThrowTerminatingError($errorRecord)
     }
   }
 }

@@ -39,10 +39,10 @@ function Resolve-Module {
       }
       if (!$Local_ModuleVersion -or $Local_ModuleVersion -eq ([version]::New())) {
         Write-Verbose -Message "Install $_ ..."
-        $res += [Pscraft]::InstallPsGalleryModule($_)
+        $res += Install-PsGalleryModule -Name $_
       } elseif ($Local_ModuleVersion -lt $Latest_ModuleVerion -and $UpdateModule.IsPresent) {
         Write-Verbose -Message "Update $_ from version $Local_ModuleVersion to version [$Latest_ModuleVerion] ..." -Verbose
-        $res += [Pscraft]::InstallPsGalleryModule($_, $Latest_ModuleVerion, $true)
+        $res += Install-PsGalleryModule -Name $_ -Version $Latest_ModuleVerion -UpdateOnly
       } else {
         Write-Host ">> " -NoNewline
         Write-Host "$_ is already Installed and Up-to-date." -f Green

@@ -42,7 +42,7 @@
     }
     if (!(Test-Path $File)) {
       $Error_params = @{
-        ExceptionName    = "System.Management.Automation.ItemNotFoundException"
+        ExceptionName    = "System.IO.FileNotFoundException"
         ExceptionMessage = "Can't find file $File"
         ErrorId          = "PathNotFound,Metadata\Import-Metadata"
         Caller           = $PSCmdlet
@@ -55,8 +55,8 @@
     $data = New-Object PsObject; $text = [IO.File]::ReadAllText($File)
     $data = [scriptblock]::Create("$text").Invoke()
     if ([string]::IsNullOrWhiteSpace($Property)) { return $data }
-    $r = $data.$Property
-    if ($null -eq $r) {
+    $_res = $data.$Property
+    if ($null -eq $_res) {
       $Error_params = @{
         ExceptionName    = "System.Management.Automation.ItemNotFoundException"
         ExceptionMessage = "Can't find '$Property' in $File"
@@ -66,16 +66,6 @@
       }
       Write-TerminatingError @Error_params
     }
-    if ($r.Count -gt 1) {
-      $Error_params = @{
-        ExceptionName    = "System.Reflection.AmbiguousMatchException"
-        ExceptionMessage = "Found more than one '$Property' in $File. Please specify a dotted path instead. Matching paths include: '{0}'" -f ($KeyValue.HashKeyPath -join "', '")
-        ErrorId          = "AmbiguousMatch,Metadata\Get-Metadata"
-        Caller           = $PSCmdlet
-        ErrorCategory    = "InvalidArgument"
-      }
-      Write-TerminatingError @Error_params
-    }
-    return $r
+    return $_res
   }
 }
