@@ -380,6 +380,26 @@
       $data = [PsObject]([scriptblock]::Create("$([IO.File]::ReadAllText($psd1))").Invoke() | Select-Object *)
       $build_requirements = $data.RequiredModules + $build_requirements | Select-Object -Unique
     }
+    function Ping-Host {
+      [CmdletBinding()][OutputType([bool])]
+      param ([string]$target = "https://www.github.com", [int]$MaxAttempts = 5 )
+      # .SYNOPSIS
+      #  Pretty straight-forward fxn to test network connectivity
+      $a = 1; $result = $false
+      while ($a -le $MaxAttempts) {
+        try {
+          Write-Verbose "Ping $target Attempt [$a/$MaxAttempts]"
+          $PingReply = [System.Net.NetworkInformation.Ping]::new().Send($target);
+          $result = ($PingReply.Status -eq [System.Net.NetworkInformation.IPStatus]::Success)
+          if (!$result) { Write-Verbose "Command failed on attempt $a" } else { return $true }
+        } catch {
+          Write-Host $_.Exception.Message -f Red
+        }
+        if ($a -lt $MaxAttempts) { Start-Sleep -Milliseconds 600 }
+        $a++
+      }
+      return $result
+    }
   }
   Process {
     #region    packagefeed
@@ -400,20 +420,18 @@
     #endregion packagefeed
     #region    buildrequirements
     Write-Host "Resolve build requirements: [$($build_requirements -join ', ')]" -f Green
-    $target = "https://www.github.com"; $Isconnected = $(try { [System.Net.NetworkInformation.PingReply]$PingReply = [System.Net.NetworkInformation.Ping]::new().Send($target); $PingReply.Status -eq [System.Net.NetworkInformation.IPStatus]::Success } catch [System.Net.Sockets.SocketException], [System.Net.NetworkInformation.PingException] { Write-Verbose "Ping $target : $($_.Exception.InnerException.Message)"; $false });
-    $InstalledModules = $(if (!$Isconnected) { (Get-Module -Verbose:$false) + (Get-InstalledModule -Verbose:$false) | Select-Object -Unique -ExpandProperty Name } else { @() })
+    $IsConnected = Ping-Host; $InstalledModules = $(if (!$IsConnected) { (Get-Module -Verbose:$false) + (Get-InstalledModule -Verbose:$false) | Select-Object -Unique -ExpandProperty Name } else { @() })
     $L = (($build_requirements | Select-Object @{l = 'L'; e = { $_.Length } }).L | Sort-Object -Descending)[0]
     foreach ($name in $build_requirements) {
       try {
-        if ($Isconnected) {
-          Install-Module $name -Verbose:$false -ea Stop;
+        if ($IsConnected) {
+          Install-Module -Name $name -Verbose:$false -ea Stop;
           Write-Host " [+] Installed module $name" -f Green
-          continue
-        }
-        if ($InstalledModules -notcontains $name) {
+        } elseif ($InstalledModules -contains $name) {
+          Write-Host " [+] Module $name$(' '* $($L - $name.Length))was already installed" -f Green
+        } else {
           throw [System.Management.Automation.ItemNotFoundException]::new("Module $name is not installed.")
         }
-        Write-Host " [+] Module $name$(' '* $($L - $name.Length))was already installed" -f Green
       } catch {
         $PSCmdlet.ThrowTerminatingError($_)
       }
