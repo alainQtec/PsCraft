@@ -5,8 +5,8 @@ using namespace System.Management.Automation
 .SYNOPSIS
     Run Tests
 .EXAMPLE
-    .\Test-Module.ps1 -version 0.2.3
-    Will test the module in .\BuildOutput\PsCraft\0.2.3\
+    .\Test-Module.ps1 -version 0.2.4
+    Will test the module in .\BuildOutput\PsCraft\0.2.4\
 .EXAMPLE
     .\Test-Module.ps1
     Will test the latest  module version in .\BuildOutput\PsCraft\

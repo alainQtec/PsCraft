@@ -29,7 +29,7 @@
         }
       }
     )][string]
-    $Path = (Resolve-Path .).Path
+    $Path = (Get-Location).Path
   )
   begin {
     [string]$Path = Resolve-Path $Path
