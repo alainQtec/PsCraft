@@ -435,7 +435,8 @@
     #endregion packagefeed
     #region    buildrequirements
     Write-Host "Resolve build requirements: [$($build_requirements -join ', ')]" -f Green
-    $IsConnected = Test-NetworkConnectivity; $InstalledModules = $(if (!$IsConnected) { (Get-Module -Verbose:$false) + (Get-InstalledModule -Verbose:$false) | Select-Object -Unique -ExpandProperty Name } else { @() })
+    $IsGithubRun = ![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('GITHUB_WORKFLOW'))
+    $IsConnected = $IsGithubRun ? $true : $(Test-NetworkConnectivity); $InstalledModules = $(if (!$IsConnected) { (Get-Module -Verbose:$false) + (Get-InstalledModule -Verbose:$false) | Select-Object -Unique -ExpandProperty Name } else { @() })
     $L = (($build_requirements | Select-Object @{l = 'L'; e = { $_.Length } }).L | Sort-Object -Descending)[0]
     foreach ($name in $build_requirements) {
       try {
