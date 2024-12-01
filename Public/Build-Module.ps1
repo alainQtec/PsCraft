@@ -400,7 +400,7 @@
     #endregion packagefeed
     #region    buildrequirements
     Write-Host "Resolve build requirements: [$($build_requirements -join ', ')]" -f Green
-    $target = "https://www.powershellgallery.com"; $Isconnected = $(try { [System.Net.NetworkInformation.PingReply]$PingReply = [System.Net.NetworkInformation.Ping]::new().Send($target); $PingReply.Status -eq [System.Net.NetworkInformation.IPStatus]::Success } catch [System.Net.Sockets.SocketException], [System.Net.NetworkInformation.PingException] { Write-Verbose "Ping $target : $($_.Exception.InnerException.Message)"; $false });
+    $target = "https://www.github.com"; $Isconnected = $(try { [System.Net.NetworkInformation.PingReply]$PingReply = [System.Net.NetworkInformation.Ping]::new().Send($target); $PingReply.Status -eq [System.Net.NetworkInformation.IPStatus]::Success } catch [System.Net.Sockets.SocketException], [System.Net.NetworkInformation.PingException] { Write-Verbose "Ping $target : $($_.Exception.InnerException.Message)"; $false });
     $InstalledModules = $(if (!$Isconnected) { (Get-Module -Verbose:$false) + (Get-InstalledModule -Verbose:$false) | Select-Object -Unique -ExpandProperty Name } else { @() })
     $L = (($build_requirements | Select-Object @{l = 'L'; e = { $_.Length } }).L | Sort-Object -Descending)[0]
     foreach ($name in $build_requirements) {
