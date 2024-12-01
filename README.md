@@ -5,8 +5,14 @@
   <p>
     A toolbox to accelerate common tasks involved in <b>developing and sharing PowerShell code</b>.
     </br></br>
-    <a href="https://github.com/alainQtec/PsCraft/actions/workflows/CI.yaml">
-    <img src="https://github.com/alainQtec/PsCraft/actions/workflows/CI.yaml/badge.svg" alt="CI"/>
+    <a href="https://github.com/alainQtec/PsCraft/actions/workflows/Build_on_windows.yaml">
+    <img src="https://github.com/alainQtec/PsCraft/actions/workflows/Build_on_windows.yaml/badge.svg" alt="Build on Windows"/>
+    </a>
+    <a href="https://github.com/alainQtec/PsCraft/actions/workflows/Build_on_Mac.yaml">
+    <img src="https://github.com/alainQtec/PsCraft/actions/workflows/Build_on_Mac.yaml/badge.svg" alt="Build on MacOS"/>
+    </a>
+    <a href="https://github.com/alainQtec/PsCraft/actions/workflows/Build_on_Linux.yaml">
+    <img src="https://github.com/alainQtec/PsCraft/actions/workflows/Build_on_Linux.yaml/badge.svg" alt="Build on Linux"/>
     </a>
     <a href="https://www.powershellgallery.com/packages/PsCraft">
     <img src="https://img.shields.io/powershellgallery/dt/PsCraft.svg?style=flat&logo=powershell&color=blue" alt="PowerShell Gallery" title="PowerShell Gallery" />
@@ -24,7 +30,7 @@ Install-Module PsCraft
 ```
 
 </li>
-<li>then .. Create, test, build, deploy 🚀.</br>
+<li>Create, test, build and deploy 🚀 a module really fast.</br>
   <p>⤷ <b>Ex</b>: You can create a <a href="https://learn.microsoft.com/en-us/powershell/scripting/developer/module/how-to-write-a-powershell-script-module">script module</a> in under 5 seconds!</p>
 
 https://github.com/user-attachments/assets/2a8c8688-2483-4a44-8801-37fde5016306
@@ -35,8 +41,6 @@ Its one comand!
 $module = New-PsModule "CliHelper.Core"
 ```
 
-(づ ᴗ _ᴗ)づ haleluːjə!
-
 </li>
 </ul>
 
@@ -44,9 +48,7 @@ For more usage read the [docs](/docs/Readme.md). they pretty easy!
 
 **[_W.I.P_]**
 
-- [x] **Create & Manage** modules: `PsCraft.ModuleManager.psm1`
-
-- [x] Add **CodeSigning** Functions: `PsCraft.CodeSigner.psm1`
+- [ ] Add **CodeSigning** Functions: `PsCraft.CodeSigner.psm1`
 
   <p>Cross-platform <a href ="https://learn.microsoft.com/en-us/previous-versions/windows/hardware/design/dn653556(v=vs.85)">code signing</a>.</p>
 
