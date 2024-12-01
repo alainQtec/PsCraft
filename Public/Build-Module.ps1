@@ -386,13 +386,13 @@
       #.DESCRIPTION
       #  Attempts to connect to the target multiple times, checking for successful connection status
       #.EXAMPLE
-      #  Test-NetworkConnectivity www.github.com
+      #  Test-NetworkConnectivity fast.com
       [CmdletBinding()][OutputType([bool])]
       param (
         # The hostname or IP address to test connectivity to
         [Parameter(Mandatory = $false, Position = 0)]
         [ValidateNotNullOrWhiteSpace()]
-        [string]$Target = "fast.com",
+        [string]$Target = "www.github.com",
 
         [Parameter(Mandatory = $false, Position = 1)]
         [int]$MaxAttempts = 5,
