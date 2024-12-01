@@ -1,4 +1,4 @@
-name: CI
+name: MacOS build
 on: [push, pull_request, workflow_dispatch]
 defaults:
   run:
@@ -6,12 +6,10 @@ defaults:
 
 jobs:
   build:
-    name: Runs on all platforms
-    runs-on: ${{ matrix.os }}
+    name: Runs on macOS
+    runs-on: macOS-latest
     strategy:
       fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macOS-latest]
     steps:
       - uses: actions/checkout@v3
       - name: Build
