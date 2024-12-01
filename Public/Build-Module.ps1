@@ -380,25 +380,40 @@
       $data = [PsObject]([scriptblock]::Create("$([IO.File]::ReadAllText($psd1))").Invoke() | Select-Object *)
       $build_requirements = $data.RequiredModules + $build_requirements | Select-Object -Unique
     }
-    function Ping-Host {
+    function Test-NetworkConnectivity {
+      #.SYNOPSIS
+      #  Pretty straight-forward fxn to test if a device is offline or not.
+      #.DESCRIPTION
+      #  Attempts to connect to the target multiple times, checking for successful connection status
+      #.EXAMPLE
+      #  Test-NetworkConnectivity www.github.com
       [CmdletBinding()][OutputType([bool])]
-      param ([string]$target = "https://www.github.com", [int]$MaxAttempts = 5 )
-      # .SYNOPSIS
-      #  Pretty straight-forward fxn to test network connectivity
-      $a = 1; $result = $false
-      while ($a -le $MaxAttempts) {
+      param (
+        # The hostname or IP address to test connectivity to
+        [Parameter(Mandatory = $false, Position = 0)]
+        [ValidateNotNullOrWhiteSpace()]
+        [string]$Target = "fast.com",
+
+        [Parameter(Mandatory = $false, Position = 1)]
+        [int]$MaxAttempts = 5,
+
+        [Parameter(Mandatory = $false, Position = 2)]
+        [int]$TimeoutSeconds = 1
+      )
+      # Define successful status values
+      $a = 1; $ic = $false; $SS = [System.Net.NetworkInformation.IPStatus[]]@( "Success", "TtlExpired" )
+      while ($a -le $MaxAttempts -and !$ic) {
         try {
-          Write-Verbose "Ping $target Attempt [$a/$MaxAttempts]"
-          $PingReply = [System.Net.NetworkInformation.Ping]::new().Send($target);
-          $result = ($PingReply.Status -eq [System.Net.NetworkInformation.IPStatus]::Success)
-          if (!$result) { Write-Verbose "Command failed on attempt $a" } else { return $true }
+          Write-Verbose "Test connection - Attempt [$a/$MaxAttempts]"
+          $cr = Test-Connection -TargetName $Target -Count 1 -TimeoutSeconds $TimeoutSeconds -ea Ignore
+          $ic = $SS.Contains($cr.Status)
+          $cr | Out-String | Write-Host -f (@{ 1 = "Green"; 0 = "Red" }[[int]$ic]);
         } catch {
-          Write-Host $_.Exception.Message -f Red
+          Write-Verbose "Exception occurred on attempt $a : $($_.Exception.Message)"
         }
-        if ($a -lt $MaxAttempts) { Start-Sleep -Milliseconds 600 }
-        $a++
+        if ($a -lt $MaxAttempts) { Start-Sleep -Milliseconds 600 }; $a++
       }
-      return $result
+      return $ic
     }
   }
   Process {
@@ -420,7 +435,7 @@
     #endregion packagefeed
     #region    buildrequirements
     Write-Host "Resolve build requirements: [$($build_requirements -join ', ')]" -f Green
-    $IsConnected = Ping-Host; $InstalledModules = $(if (!$IsConnected) { (Get-Module -Verbose:$false) + (Get-InstalledModule -Verbose:$false) | Select-Object -Unique -ExpandProperty Name } else { @() })
+    $IsConnected = Test-NetworkConnectivity; $InstalledModules = $(if (!$IsConnected) { (Get-Module -Verbose:$false) + (Get-InstalledModule -Verbose:$false) | Select-Object -Unique -ExpandProperty Name } else { @() })
     $L = (($build_requirements | Select-Object @{l = 'L'; e = { $_.Length } }).L | Sort-Object -Descending)[0]
     foreach ($name in $build_requirements) {
       try {
