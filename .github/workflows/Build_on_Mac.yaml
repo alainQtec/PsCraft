@@ -1,4 +1,4 @@
-name: MacOS build
+name: Build on MacOS
 on: [push, pull_request, workflow_dispatch]
 defaults:
   run:
