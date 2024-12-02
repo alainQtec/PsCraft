@@ -73,7 +73,7 @@ If this tool saves your time and you want to support me;
 
 [You can also share ideas, and provide feedback](https://github.com/alainQtec/PsCraft/discussions/2).
 
-[![Contributors](https://contrib.rocks/image?repo=alainQtec/PsCraft)](https://github.com/alainQtec/PsCraft/graphs/contributors)
+<!-- [![Contributors](https://contrib.rocks/image?repo=alainQtec/PsCraft)](https://github.com/alainQtec/PsCraft/graphs/contributors) -->
 
 Thank you.
 
