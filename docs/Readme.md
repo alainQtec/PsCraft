@@ -43,7 +43,7 @@ Import-Module PsCraft
 New-PsModule -Name MyModule
 ```
 
-<!-- Image goes here -->
+![Image](https://github.com/user-attachments/assets/bbc1e8d7-8a0f-410a-8196-cadab1821ae9)
 
 ## References
 
