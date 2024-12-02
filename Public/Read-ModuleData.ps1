@@ -32,7 +32,7 @@
     $Path = (Get-Location).Path
   )
   begin {
-    [string]$Path = Resolve-Path $Path
+    if (![IO.Directory]::Exists($Path)) { [string]$Path = Resolve-Path $Path -ea Stop }
     if (!$PSCmdlet.MyInvocation.BoundParameters.ContainsKey('File')) {
       $File = [IO.Path]::Combine($Path, (Get-Culture).Name, "$([IO.DirectoryInfo]::New($Path).BaseName).strings.psd1");
     }; $File = Resolve-Path $File;

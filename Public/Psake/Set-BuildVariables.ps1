@@ -18,7 +18,7 @@
       }
     )]
     [Alias('root')][string]
-    $Path = '.',
+    $Path = $PSScriptRoot,
 
     [Parameter(Mandatory = $false, Position = 1)]
     [ValidatePattern('\w*')][Alias('RunId')][String]
@@ -31,7 +31,7 @@
   )
 
   Process {
-    $Path = Resolve-Path $Path -ea Stop
+    if (![IO.Directory]::Exists($Path)) { [string]$Path = Resolve-Path $Path -ea Stop }
     if (!$PSBoundParameters.ContainsKey("Data")) { $Data = Read-ModuleData -Path $Path }; $Version = $Data.ModuleVersion
     if ($null -eq $Version) { throw [System.ArgumentNullException]::new('version', "Please make sure localizedData.ModuleVersion is not null.") }
     if (![bool][int]$env:IsAC) {
