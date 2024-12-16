@@ -33,12 +33,12 @@ Install-Module PsCraft
 <li>Create, test, build and deploy 🚀 a module really fast.</br>
   <p>⤷ <b>Ex</b>: You can create a <a href="https://learn.microsoft.com/en-us/powershell/scripting/developer/module/how-to-write-a-powershell-script-module">script module</a> in under 5 seconds!</p>
 
-https://github.com/user-attachments/assets/2a8c8688-2483-4a44-8801-37fde5016306
+https://github.com/user-attachments/assets/d18cbf73-0426-4f05-b965-2b056d06311e
 
 Its one comand!
 
 ```PowerShell
-$module = New-PsModule "CliHelper.Core"
+$module = New-PsModule -Name testmodule123
 ```
 
 </li>
