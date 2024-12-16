@@ -48,13 +48,7 @@ For more usage read the [docs](/docs/Readme.md). they pretty easy!
 
 **[_W.I.P_]**
 
-- [ ] Add **CodeSigning** Functions: `PsCraft.CodeSigner.psm1`
-
-  <p>Cross-platform <a href ="https://learn.microsoft.com/en-us/previous-versions/windows/hardware/design/dn653556(v=vs.85)">code signing</a>.</p>
-
-  <p>Sign your modules and scripts with digital signatures for enhanced <a href ="https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_signing?view=powershell-7.4">security and trust</a></p>
-
-<p>And other todos not mentioned here. Use <a href="https://marketplace.visualstudio.com/items?itemName=Gruntfuggly.todo-tree">todo tree</a> to find all of them.</p>
+<p>Use <a href="https://marketplace.visualstudio.com/items?itemName=Gruntfuggly.todo-tree">todo tree</a> to find all of them.</p>
 
 ## License
 
