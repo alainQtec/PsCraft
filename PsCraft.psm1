@@ -546,9 +546,6 @@ class PsModuleData {
     return $mdta
   }
   static [Collection[PsModuleData]] Create([string]$Name, [string]$Path, [List[ModuleFile]]$Files) {
-    # [uri] $ProjectUri;
-    # [uri] $LicenseUri;
-    # [Object[]] $RequiredModules;
     $AuthorName = [ModuleManager]::GetAuthorName(); $AuthorEmail = [ModuleManager]::GetAuthorEmail()
     $props = @{
       Path                  = [Path]::Combine($Path, $Path.Split([Path]::DirectorySeparatorChar)[-1] + ".psd1")
@@ -748,15 +745,9 @@ class PsModuleData {
           ReleaseNotes  = '<ReleaseNotes>'
         }
       }
-      PrivateData           = @{
-        PSData = @{
-          Tags         = @('powershell', $AuthorName)
-          LicenseUri   = "https://$AuthorName.MIT-license.org"
-          ProjectUri   = 'https://github.com/{0}/{1}' -f $AuthorName, $Name
-          IconUri      = ''
-          ReleaseNotes = '`n<ReleaseNotes>`n' #intentionaly left this way to be replaced by build.ps1
-        }
-      }
+      LicenseUri            = "https://alain.MIT-license.org"
+      ProjectUri            = "https://github.com/$AuthorName/$Name"
+      IconUri               = 'https://github.com/user-attachments/assets/1220c30e-a309-43c3-9a80-1948dae30e09'
       rootLoader            = {
         #!/usr/bin/env pwsh
         #region    Classes
@@ -1096,7 +1087,7 @@ class PsModule {
     $d = [IO.DirectoryInfo]::new($p); if (![IO.Directory]::Exists($d)) {
       return [PsModule]::new($d.BaseName, $d.Parent)
     }
-    Write-Error "[WIP] Load Module from $p"
+    Write-Host "[WIP] Load Module from $p" -f Blue
     return [PsModule]::Load($d)
   }
   static hidden [PsModule] Create([string]$Name, [IO.DirectoryInfo]$Path, [ref]$o) {
