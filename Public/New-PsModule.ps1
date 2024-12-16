@@ -72,10 +72,11 @@
 
   begin {
     $Module = $null; $Path = [PsCraft]::GetResolvedPath($Path)
+    #Requires -RunAsAdministrator
   }
 
   process {
-    Write-Host "[+] Creating Module $Name ..." # Todo: Add loading animation
+    Write-Console "Creating Module $Name ..." -f SlateBlue # Todo: Add loading animation
     if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey("Path")) {
       $Module = [PsModule]::Create($Name, $path)
     } else {
@@ -106,7 +107,7 @@
     if ($PSCmdlet.ShouldProcess("", "", "Format and Write Module folder structure")) {
       [void]$Module.save(); $_p = $Module.Path.FullName
       if ([IO.Directory]::Exists($_p)) {
-        ([bool](Get-Command tree -CommandType Application -ea Ignore) ? (tree $_p) : (cliHelper.core\Show-Tree $_p -Depth 5)) | Out-Host
+        ([bool](Get-Command tree -CommandType Application -ea Ignore) ? ([string]::Join([char]10, (tree $_p | Out-String)) | cliHelper.core\Write-Console -f SlateBlue) : (cliHelper.core\Show-Tree $_p -Depth 5)) | Out-Host
       }
     }
   }

@@ -65,7 +65,7 @@
           }
         } catch {
           if ($ret -lt 1 -and $_.ErrorRecord.Exception.Message -eq "Module '$moduleName' was not installed by using Install-Module, so it cannot be updated.") {
-            Get-Module $moduleName | Remove-Module -Force; $ret++
+            Get-Module $moduleName | Remove-Module -Force -ErrorAction Ignore; $ret++
             $UpdateModule.Invoke()
           }
         }
