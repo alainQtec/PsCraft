@@ -8,7 +8,7 @@
   # .EXAMPLE
   #   Read-ModuleData .
   #   Reads the Moduledata from the current directory, assumes that the module name is the same as the directory name
-  [CmdletBinding()]
+  [CmdletBinding(ConfirmImpact = 'None')]
   [OutputType([PsObject])]
   param (
     [Parameter(Position = 0, Mandatory = $false, ValueFromPipeline = $true)]
@@ -29,7 +29,9 @@
         }
       }
     )][string]
-    $Path = (Get-Location).Path
+    $Path = (Get-Location).Path,
+
+    [switch]$NoNullResult
   )
   begin {
     if (![IO.Directory]::Exists($Path)) { [string]$Path = Resolve-Path $Path -ea Stop }
@@ -56,7 +58,7 @@
     $data = [scriptblock]::Create("$text").Invoke()
     if ([string]::IsNullOrWhiteSpace($Property)) { return $data }
     $_res = $data.$Property
-    if ($null -eq $_res) {
+    if ($null -eq $_res -and $NoNullResult) {
       $Error_params = @{
         ExceptionName    = "System.Management.Automation.ItemNotFoundException"
         ExceptionMessage = "Can't find '$Property' in $File"
